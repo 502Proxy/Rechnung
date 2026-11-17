@@ -30,6 +30,10 @@ private actor FakeBunqServer: HTTPTransport {
             let pem = try serverKey.publicKeyPEM().replacingOccurrences(of: "\n", with: "\\n")
             json = #"{"Response":[{"Id":{"id":1}},{"Token":{"token":"installation-token"}},{"ServerPublicKey":{"server_public_key":"\#(pem)"}}]}"#
         case ("POST", "/v1/device-server"), ("POST", "/v1/session-server"):
+            let secret = (try? JSONSerialization.jsonObject(with: body) as? [String: Any])?["secret"] as? String
+            if secret == "sandbox_rejected" {
+                return try respond(#"{"Error":[{"error_description_translated":"Zugangsdaten falsch."}]}"#, status: 400)
+            }
             guard let clientKey = clientPublicKeyPEM,
                   let signature = request.value(forHTTPHeaderField: "X-Bunq-Client-Signature"),
                   BunqKeyPair.verify(signatureBase64: signature, data: body, publicKeyPEM: clientKey),
@@ -108,9 +112,9 @@ struct BunqTests {
     func fullFlow() async throws {
         let server = try FakeBunqServer()
         let secrets = InMemorySecretStore()
-        let client = BunqClient(environment: .sandbox, secrets: secrets, transport: server)
+        let client = BunqClient(secrets: secrets, transport: server)
 
-        try await client.connect(apiKey: "sandbox_api_key")
+        try await client.connect(apiKey: "sandbox_test_placeholder")
         let source = BunqConnection(client: client, accountIBAN: "DE89 3704 0044 0532 0130 00")
         let since = try #require(LocalDate(year: 2026, month: 11, day: 1))
         let transactions = try await source.transactions(since: since)
@@ -135,8 +139,8 @@ struct BunqTests {
     @Test("Responses with a wrong server signature are discarded")
     func rejectsTamperedResponses() async throws {
         let server = try FakeBunqServer()
-        let client = BunqClient(environment: .sandbox, secrets: InMemorySecretStore(), transport: server)
-        try await client.connect(apiKey: "key")
+        let client = BunqClient(secrets: InMemorySecretStore(), transport: server)
+        try await client.connect(apiKey: "sandbox_test_placeholder")
         await server.setTampering(true)
         await #expect(throws: BunqError.invalidServerSignature) { _ = try await client.accounts() }
     }
@@ -145,12 +149,30 @@ struct BunqTests {
     func disconnect() async throws {
         let secrets = InMemorySecretStore()
         let server = try FakeBunqServer()
-        let client = BunqClient(environment: .sandbox, secrets: secrets, transport: server)
-        try await client.connect(apiKey: "key")
+        let client = BunqClient(secrets: secrets, transport: server)
+        try await client.connect(apiKey: "sandbox_test_placeholder")
         try await client.disconnect()
         for key in [SecretKey.bunqAPIKey, .bunqClientPrivateKey, .bunqInstallation] {
             #expect(try secrets.data(for: key) == nil)
         }
+    }
+
+    @Test("The environment follows from the API key")
+    func environmentDetection() {
+        #expect(BunqClient.environment(forAPIKey: "sandbox_abc") == .sandbox)
+        #expect(BunqClient.environment(forAPIKey: "a1b2c3") == .production)
+    }
+
+    @Test("A rejected key is not kept and the error names the step")
+    func rejectedKey() async throws {
+        let secrets = InMemorySecretStore()
+        let server = try FakeBunqServer()
+        let client = BunqClient(secrets: secrets, transport: server)
+        await #expect(throws: BunqError.api(operation: "Gerät registrieren", status: 400, message: "Zugangsdaten falsch.")) {
+            try await client.connect(apiKey: "sandbox_rejected")
+        }
+        #expect(try secrets.data(for: .bunqAPIKey) == nil)
+        #expect(await client.connectedEnvironment() == nil)
     }
 
     @Test("Pagination stays on the bunq host")

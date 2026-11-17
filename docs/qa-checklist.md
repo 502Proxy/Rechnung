@@ -25,7 +25,8 @@ Für jeden Build aus der Stage `qa` vor dem Merge nach `main`.
 
 ## bunq (Sandbox-Konto)
 
-- [ ] Verbinden mit einem Sandbox-API-Schlüssel klappt
+- [ ] Verbinden mit einem Sandbox-API-Schlüssel (`sandbox_…`) klappt
+- [ ] Ein falscher Schlüssel zeigt eine verständliche Meldung und wird nicht gespeichert
 - [ ] Eine Zahlung mit Rechnungsnummer wird automatisch verbucht
 - [ ] Eine Zahlung ohne Nummer erscheint als Vorschlag
 - [ ] „Verbindung trennen“ entfernt die Einträge aus dem Schlüsselbund (Schlüsselbundverwaltung prüfen)

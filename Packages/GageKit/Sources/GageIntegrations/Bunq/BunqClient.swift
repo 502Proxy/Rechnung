@@ -62,7 +62,13 @@ public actor BunqClient {
         let userID: Int
     }
 
-    private let environment: BunqEnvironment
+    /// Which bunq environment the stored API key belongs to.
+    struct Credentials: Codable {
+        let apiKey: String
+        let environment: BunqEnvironment
+    }
+
+    private var environment: BunqEnvironment = .production
     private let secrets: any SecretStore
     private let transport: any HTTPTransport
     private let deviceDescription: String
@@ -71,27 +77,42 @@ public actor BunqClient {
     private var session: Session?
 
     public init(
-        environment: BunqEnvironment,
         secrets: any SecretStore,
         transport: any HTTPTransport = HardenedURLSessionTransport(),
         deviceDescription: String = "Gage für macOS",
         requireServerSignature: Bool = true
     ) {
-        self.environment = environment
         self.secrets = secrets
         self.transport = transport
         self.deviceDescription = deviceDescription
         self.requireServerSignature = requireServerSignature
     }
 
-    /// Stores the API key and registers this Mac with bunq.
+    /// bunq sandbox keys start with `sandbox_`. Every other key belongs to the real bank.
+    public static func environment(forAPIKey apiKey: String) -> BunqEnvironment {
+        apiKey.hasPrefix("sandbox_") ? .sandbox : .production
+    }
+
+    /// Stores the API key and registers this Mac with bunq. The environment follows from the key.
     public func connect(apiKey: String) async throws {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 256 else { throw BunqError.missingAPIKey }
-        try secrets.set(Data(trimmed.utf8), for: .bunqAPIKey)
+        let credentials = Credentials(apiKey: trimmed, environment: Self.environment(forAPIKey: trimmed))
+        try secrets.set(JSONEncoder().encode(credentials), for: .bunqAPIKey)
         try secrets.remove(.bunqInstallation)
         session = nil
-        _ = try await ensureSession()
+        do {
+            _ = try await ensureSession()
+        } catch {
+            // Do not keep a key that bunq rejected.
+            try? disconnect()
+            throw error
+        }
+    }
+
+    /// The environment of the stored key, or `nil` if not connected.
+    public func connectedEnvironment() -> BunqEnvironment? {
+        try? loadCredentials()?.environment
     }
 
     /// Removes the API key and all keys from the Keychain.
@@ -119,8 +140,8 @@ public actor BunqClient {
         )
         var collected: [BunqPayment] = []
 
-        for page in 0..<maxPages {
-            if page > 0 { try await Task.sleep(for: .milliseconds(1100)) } // bunq allows 3 GET requests per 3 s
+        for pageIndex in 0..<maxPages {
+            if pageIndex > 0 { try await Task.sleep(for: .milliseconds(1100)) } // bunq allows 3 GET requests per 3 s
             let envelope = try await send(method: "GET", path: page.path, query: page.query, token: session.token)
             let payments = envelope.items.payments
             collected += payments
@@ -135,9 +156,9 @@ public actor BunqClient {
 
     private func ensureSession() async throws -> Session {
         if let session { return session }
-        guard let apiKeyData = try secrets.data(for: .bunqAPIKey),
-              let apiKey = String(data: apiKeyData, encoding: .utf8)
-        else { throw BunqError.missingAPIKey }
+        guard let credentials = try loadCredentials() else { throw BunqError.missingAPIKey }
+        let apiKey = credentials.apiKey
+        environment = credentials.environment
 
         let keyPair = try loadOrCreateKeyPair()
         var installation = try await loadOrCreateInstallation(keyPair: keyPair)
@@ -172,6 +193,11 @@ public actor BunqClient {
         self.session = session
         logger.info("bunq session established")
         return session
+    }
+
+    private func loadCredentials() throws -> Credentials? {
+        guard let data = try secrets.data(for: .bunqAPIKey) else { return nil }
+        return try JSONDecoder().decode(Credentials.self, from: data)
     }
 
     private func loadOrCreateKeyPair() throws -> BunqKeyPair {
@@ -216,6 +242,19 @@ public actor BunqClient {
         let request = try makeRequest(method: method, path: path, query: query, body: body, token: token, keyPair: keyPair)
         let (data, response) = try await transport.send(request)
 
+        let operation = Self.operationName(for: path)
+        guard (200..<300).contains(response.statusCode) else {
+            // Error responses are only shown, never processed further, so they need no signature.
+            let message = (try? JSONDecoder().decode(BunqErrorEnvelope.self, from: data))?.entries.first?.description
+            if response.statusCode == 401 { session = nil }
+            logger.error("bunq \(operation, privacy: .public) failed with status \(response.statusCode, privacy: .public)")
+            throw BunqError.api(
+                operation: operation,
+                status: response.statusCode,
+                message: String((message ?? "Keine Fehlerbeschreibung").prefix(300))
+            )
+        }
+
         if verifySignature, requireServerSignature {
             let key = try serverKey ?? storedServerKey()
             guard let signature = response.value(forHTTPHeaderField: "X-Bunq-Server-Signature") else {
@@ -224,13 +263,6 @@ public actor BunqClient {
             guard BunqKeyPair.verify(signatureBase64: signature, data: data, publicKeyPEM: key) else {
                 throw BunqError.invalidServerSignature
             }
-        }
-
-        guard (200..<300).contains(response.statusCode) else {
-            let message = (try? JSONDecoder().decode(BunqErrorEnvelope.self, from: data))?.entries.first?.description
-            if response.statusCode == 401 { session = nil }
-            logger.error("bunq request failed with status \(response.statusCode, privacy: .public)")
-            throw BunqError.api(status: response.statusCode, message: message ?? "Unbekannter Fehler")
         }
         do {
             return try JSONDecoder().decode(BunqEnvelope.self, from: data)
@@ -280,6 +312,17 @@ public actor BunqClient {
             request.setValue(signature, forHTTPHeaderField: "X-Bunq-Client-Signature")
         }
         return request
+    }
+
+    static func operationName(for path: String) -> String {
+        switch path {
+        case "/installation": "Installation"
+        case "/device-server": "Gerät registrieren"
+        case "/session-server": "Anmeldung"
+        case _ where path.hasSuffix("/payment"): "Umsätze abrufen"
+        case _ where path.hasSuffix("/monetary-account"): "Konten abrufen"
+        default: "Anfrage"
+        }
     }
 
     private func storedServerKey() throws -> String {

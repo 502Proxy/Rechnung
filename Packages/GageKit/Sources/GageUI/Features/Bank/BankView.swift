@@ -140,6 +140,7 @@ private struct ConnectBankSheet: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Den Schlüssel erstellst du in der bunq-App unter Profil › Sicherheit & Einstellungen › Entwickler › API-Schlüssel.")
+                    Text("Ein Schlüssel, der mit „sandbox_“ beginnt, verbindet mit der bunq-Testumgebung, jeder andere mit deinem echten Konto.")
                     Text("Der Schlüssel wird nur im macOS-Schlüsselbund gespeichert. Gage liest Kontoumsätze und kann keine Überweisungen ausführen.")
                 }
                 .font(.caption)
