@@ -39,7 +39,7 @@ struct InvoiceEditorView: View {
                 ScrollView([.vertical, .horizontal]) {
                     InvoiceDocumentView(model: InvoiceDocumentModel(
                         draft: draft.wrappedValue,
-                        number: editingInvoice?.number,
+                        number: editingInvoice?.number ?? model.predictedNumber(for: draft.wrappedValue.issueDate),
                         customer: draft.wrappedValue.customerID.flatMap(model.data.customer(withID:)),
                         profile: model.data.profile
                     ))

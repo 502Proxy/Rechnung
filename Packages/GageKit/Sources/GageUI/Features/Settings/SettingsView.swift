@@ -1,5 +1,7 @@
+import AppKit
 import GageCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct SettingsView: View {
     public init() {}
@@ -20,6 +22,8 @@ private struct ProfileSettings: View {
     @State private var profile = BusinessProfile.empty
     @State private var ibanText = ""
     @State private var emailText = ""
+    @State private var showsLogoPicker = false
+    @State private var logoError: String?
 
     private var ibanIsValid: Bool { ibanText.isEmpty || IBAN(ibanText) != nil }
     private var emailIsValid: Bool { emailText.isEmpty || EmailAddress(emailText) != nil }
@@ -41,6 +45,23 @@ private struct ProfileSettings: View {
                 Text("Deine Angaben")
             } footer: {
                 Text("Diese Angaben stehen als Pflichtangaben nach § 14 UStG auf jeder Rechnung.")
+            }
+            Section {
+                TextField("Künstlername / Projekt", text: $profile.artistName, prompt: Text("z. B. Prysma/Takttornado"))
+                HStack(spacing: 12) {
+                    if let logo = profile.logoPNG.flatMap(NSImage.init(data:)) {
+                        Image(nsImage: logo).resizable().scaledToFit().frame(width: 48, height: 48)
+                    }
+                    Button(profile.logoPNG == nil ? "Logo auswählen …" : "Logo ersetzen …") { showsLogoPicker = true }
+                    if profile.logoPNG != nil {
+                        Button("Entfernen", role: .destructive) { profile.logoPNG = nil }
+                    }
+                }
+                if let logoError { invalidHint(logoError) }
+            } header: {
+                Text("Auftritt auf der Rechnung")
+            } footer: {
+                Text("Steht oben links auf jeder Rechnung. Das Logo wird verkleinert und ohne Metadaten gespeichert.")
             }
             Section("Steuer") {
                 TextField("Steuernummer", text: $profile.taxNumber, prompt: Text("z. B. 43/123/45678"))
@@ -65,6 +86,17 @@ private struct ProfileSettings: View {
             }
         }
         .formStyle(.grouped)
+        .fileImporter(isPresented: $showsLogoPicker, allowedContentTypes: [.png, .jpeg, .heic, .tiff]) { result in
+            guard case let .success(url) = result else { return }
+            let granted = url.startAccessingSecurityScopedResource()
+            defer { if granted { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url), data.count <= 5 * 1024 * 1024, let png = LogoImage.normalizedPNG(from: data) {
+                profile.logoPNG = png
+                logoError = nil
+            } else {
+                logoError = "Das Bild konnte nicht verwendet werden. Bitte wähle eine PNG- oder JPEG-Datei bis 5 MB."
+            }
+        }
         .onAppear {
             profile = model.data.profile
             ibanText = profile.iban?.formatted ?? ""
@@ -86,7 +118,9 @@ private struct AutomationSettings: View {
                 Picker("Standard-Zahlungsziel", selection: binding(\.defaultPaymentTermDays)) {
                     ForEach([7, 14, 30], id: \.self) { Text("\($0) Tage").tag($0) }
                 }
-                LabeledContent("Nummernkreis", value: "JJJJ-NNN, fortlaufend")
+                Picker("Rechnungsnummern", selection: binding(\.numberScheme)) {
+                    ForEach(InvoiceNumberScheme.allCases) { Text($0.displayName).tag($0) }
+                }
                 LabeledContent("Ablage", value: "Archiv im App-Container, schreibgeschützt")
             }
             Section {
@@ -163,5 +197,25 @@ private struct SecuritySettings: View {
             get: { model.data.settings[keyPath: keyPath] },
             set: { newValue in Task { await model.updateSettings { $0[keyPath: keyPath] = newValue } } }
         )
+    }
+}
+
+/// Scales a logo to at most 600 px and re-encodes it as PNG. Re-encoding drops EXIF and other metadata.
+enum LogoImage {
+    static func normalizedPNG(from data: Data, maximumSide: CGFloat = 600) -> Data? {
+        guard let source = NSBitmapImageRep(data: data), source.pixelsWide > 0, source.pixelsHigh > 0 else { return nil }
+        let scale = min(1, maximumSide / CGFloat(max(source.pixelsWide, source.pixelsHigh)))
+        let width = Int(CGFloat(source.pixelsWide) * scale)
+        let height = Int(CGFloat(source.pixelsHigh) * scale)
+        guard let target = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ), let context = NSGraphicsContext(bitmapImageRep: target) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        source.draw(in: NSRect(x: 0, y: 0, width: width, height: height))
+        NSGraphicsContext.restoreGraphicsState()
+        return target.representation(using: .png, properties: [:])
     }
 }

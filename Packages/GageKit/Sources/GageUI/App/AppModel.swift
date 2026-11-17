@@ -59,7 +59,15 @@ public final class AppModel {
         data.invoices.first { $0.source == .gig(eventID: gig.id) }
     }
 
-    public var sortedInvoices: [Invoice] { data.invoices.sorted { $0.number > $1.number } }
+    /// Newest first. Date-based numbers do not sort chronologically as text, so the date decides.
+    public var sortedInvoices: [Invoice] {
+        data.invoices.sorted { ($0.issueDate, $0.number) > ($1.issueDate, $1.number) }
+    }
+
+    /// The number a new invoice with this date would get.
+    public func predictedNumber(for issueDate: LocalDate) -> InvoiceNumber? {
+        data.settings.numberScheme.next(issueDate: issueDate, existing: data.invoices.map(\.number))
+    }
 
     public func invoices(in state: InvoiceState?) -> [Invoice] {
         sortedInvoices.filter { state == nil || $0.state(asOf: today) == state }
@@ -268,7 +276,9 @@ public final class AppModel {
         isSyncingBank = true
         defer { isSyncingBank = false }
         do {
-            let since = data.transactions.map(\.bookingDate).max()?.adding(days: -7) ?? today.adding(days: -90)
+            // First sync reads the whole year so earlier invoices can be matched for the EÜR.
+            let startOfYear = LocalDate(year: today.year, month: 1, day: 1) ?? today.adding(days: -365)
+            let since = data.transactions.map(\.bookingDate).max()?.adding(days: -7) ?? startOfYear
             let incoming = try await dependencies.bank.transactions(since: since, accountIBAN: accountIBAN)
             var summary = BookkeepingWorkflow.BankImportSummary()
             await commit { data in summary = workflow.importTransactions(incoming, in: &data, now: dependencies.now()) }
@@ -345,6 +355,92 @@ public final class AppModel {
                 body: "Gage hat eine Rechnung aus deinem Kalender erstellt. Bitte prüfe und sende sie."
             )
         }
+    }
+
+    // MARK: Import
+
+    /// Imports checked earlier invoices. Each original PDF is archived unchanged first.
+    /// Returns the number of imported invoices; problems are reported per file.
+    @discardableResult
+    func importLegacyInvoices(_ candidates: [LegacyImportCandidate]) async -> Int {
+        var imported = 0
+        var problems: [String] = []
+        var createdCustomers: [String: UUID] = [:]
+
+        for candidate in candidates where candidate.isIncluded {
+            guard let number = InvoiceNumber(candidate.numberText) else {
+                problems.append("\(candidate.fileName): ungültige Rechnungsnummer")
+                continue
+            }
+            guard !data.invoices.contains(where: { $0.number == number }) else {
+                problems.append("\(candidate.fileName): \(number) ist bereits vorhanden")
+                continue
+            }
+            guard let customerID = await resolveCustomer(for: candidate, created: &createdCustomers) else {
+                problems.append("\(candidate.fileName): kein Kunde ausgewählt")
+                continue
+            }
+            do {
+                // An earlier, interrupted import may already have archived this file.
+                let archived: ArchivedDocument
+                if let existing = try await dependencies.archive.existingDocument(for: number) {
+                    archived = existing
+                } else {
+                    archived = try await dependencies.archive.archive(pdf: candidate.pdfData, number: number)
+                }
+                let item = ImportedInvoice(
+                    number: number,
+                    draft: candidate.draft(customerID: customerID),
+                    paidOn: candidate.isPaid ? candidate.paidOn : nil,
+                    fileName: candidate.fileName
+                )
+                let succeeded = await commit { data in
+                    try workflow.importInvoice(item, archived: archived, in: &data, now: dependencies.now())
+                }
+                if succeeded { imported += 1 }
+            } catch {
+                problems.append("\(candidate.fileName): \(error.localizedDescription)")
+            }
+        }
+
+        if problems.isEmpty {
+            infoMessage = "\(imported) Rechnung(en) importiert."
+        } else {
+            errorMessage = "\(imported) Rechnung(en) importiert. Nicht importiert:\n" + problems.joined(separator: "\n")
+        }
+        return imported
+    }
+
+    /// Uses the chosen customer or creates one from the recipient on the invoice.
+    /// The venue from the file name becomes another name of the customer, so later gigs match.
+    private func resolveCustomer(for candidate: LegacyImportCandidate, created: inout [String: UUID]) async -> UUID? {
+        var customer: Customer
+        switch candidate.customerChoice {
+        case let .existing(id):
+            guard let existing = data.customer(withID: id) else { return nil }
+            customer = existing
+        case let .new(recipient):
+            if let id = created[recipient.name], let existing = data.customer(withID: id) {
+                customer = existing
+            } else {
+                customer = Customer(
+                    name: recipient.name,
+                    address: PostalAddress(street: recipient.street, postalCode: recipient.postalCode, city: recipient.city),
+                    email: nil
+                )
+                created[recipient.name] = customer.id
+            }
+        case .none:
+            return nil
+        }
+        if let venue = candidate.parsed.venue, !venue.isEmpty,
+           !([customer.name] + customer.aliases).contains(where: { $0.caseInsensitiveCompare(venue) == .orderedSame }) {
+            customer.aliases.append(venue)
+        }
+        if customer != data.customer(withID: customer.id) {
+            await saveCustomer(customer)
+        }
+        return customer.id
     }
 
     // MARK: Private

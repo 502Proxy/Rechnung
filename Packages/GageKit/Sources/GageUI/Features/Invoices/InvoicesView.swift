@@ -6,6 +6,7 @@ struct InvoicesView: View {
     @Environment(Navigation.self) private var navigation
     @State private var filter: InvoiceState?
     @State private var selection: Invoice.ID?
+    @State private var showsImport = false
 
     var body: some View {
         let invoices = model.invoices(in: filter)
@@ -58,8 +59,15 @@ struct InvoicesView: View {
                 .pickerStyle(.segmented)
             }
             ToolbarItem(placement: .primaryAction) {
+                Button("Alte Rechnungen importieren", systemImage: "square.and.arrow.down") { showsImport = true }
+                    .help("Frühere Rechnungen als PDF übernehmen")
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button("Neue Rechnung", systemImage: "plus") { navigation.newInvoice() }
             }
+        }
+        .sheet(isPresented: $showsImport) {
+            ImportInvoicesView().environment(model)
         }
     }
 }

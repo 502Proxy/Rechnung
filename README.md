@@ -8,7 +8,8 @@ Alle Daten bleiben lokal auf dem Mac und sind verschlüsselt gespeichert.
 
 | Bereich | Was Gage macht |
 | --- | --- |
-| Rechnungen | Fortlaufende Nummern (`JJJJ-NNN`), alle Pflichtangaben nach § 14 UStG, Hinweis nach § 19 UStG, PDF im A4-Format |
+| Rechnungen | Nummern nach Rechnungsdatum (`101126`, `101126_2`) oder `2026-001`, alle Pflichtangaben nach § 14 UStG, Hinweis nach § 19 UStG, PDF im A4-Format mit eigenem Logo |
+| Import | Frühere Rechnungen als PDF übernehmen: Felder werden ausgelesen, geprüft und das Original unverändert archiviert |
 | Archiv | Versendete Rechnungen sind gesperrt (GoBD). Die PDF wird schreibgeschützt abgelegt und per SHA-256 auf Veränderungen geprüft |
 | Versand | Eine fertige E-Mail mit PDF-Anhang öffnet sich in Apple Mail. Du prüfst sie und sendest sie selbst ab |
 | Apple Kalender | Termine im Kalender „Gigs“ mit `Gage: 800` in der Notiz. Am Tag danach um 09:00 Uhr entsteht ein Rechnungsentwurf und du bekommst eine Mitteilung |
