@@ -1,0 +1,140 @@
+name: Build macOS app
+
+# Reusable build for all stages. Signs and notarizes only when the signing
+# secrets are present in the calling environment; otherwise it builds unsigned.
+on:
+  workflow_call:
+    inputs:
+      configuration:
+        type: string
+        default: Release
+      artifact-name:
+        description: Upload the .app as an artifact with this name (empty = no upload)
+        type: string
+        default: ""
+      environment:
+        description: GitHub Environment (development, qa, production)
+        type: string
+        required: true
+      retention-days:
+        type: number
+        default: 7
+    outputs:
+      signed:
+        value: ${{ jobs.build.outputs.signed }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    outputs:
+      signed: ${{ steps.signing.outputs.enabled }}
+    env:
+      DERIVED_DATA: ${{ github.workspace }}/build/DerivedData
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Check signing secrets
+        id: signing
+        env:
+          CERT: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+        run: |
+          if [[ -n "$CERT" && "${{ inputs.configuration }}" == "Release" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import signing certificate into a temporary keychain
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          CERT: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          echo "$CERT" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build
+        env:
+          CONFIGURATION: ${{ inputs.configuration }}
+          SIGNED: ${{ steps.signing.outputs.enabled }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          SIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="")
+          if [[ "$SIGNED" == "true" ]]; then
+            SIGN_ARGS=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM="$TEAM_ID" OTHER_CODE_SIGN_FLAGS="--timestamp --options runtime")
+          fi
+          xcodebuild build -quiet \
+            -project Gage.xcodeproj \
+            -scheme Gage \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            "${SIGN_ARGS[@]}"
+
+      - name: Ad-hoc sign unsigned build
+        if: steps.signing.outputs.enabled != 'true' && inputs.artifact-name != ''
+        run: |
+          APP="$DERIVED_DATA/Build/Products/${{ inputs.configuration }}/Gage.app"
+          codesign --force --deep --sign - --entitlements App/Gage/Gage.entitlements "$APP"
+
+      - name: Notarize
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          APP="$DERIVED_DATA/Build/Products/Release/Gage.app"
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/Gage-notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/Gage-notarize.zip" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$TEAM_ID" --wait
+          xcrun stapler staple "$APP"
+
+      - name: Package
+        if: inputs.artifact-name != ''
+        run: |
+          set -euo pipefail
+          APP="$DERIVED_DATA/Build/Products/${{ inputs.configuration }}/Gage.app"
+          mkdir -p dist
+          ditto -c -k --keepParent "$APP" "dist/Gage.zip"
+          shasum -a 256 dist/Gage.zip | tee dist/Gage.zip.sha256
+
+      - name: Upload artifact
+        if: inputs.artifact-name != ''
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: dist/
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: error
+
+      - name: Remove temporary keychain
+        if: always() && steps.signing.outputs.enabled == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

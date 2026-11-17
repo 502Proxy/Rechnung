@@ -1,0 +1,19 @@
+name: Funktion vorschlagen
+description: Idee für eine neue Funktion oder Verbesserung
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem soll gelöst werden?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Wie könnte die Lösung aussehen?
+  - type: textarea
+    id: tax
+    attributes:
+      label: Steuerliche Auswirkungen
+      description: Betrifft der Vorschlag UStG, EStG oder GoBD?

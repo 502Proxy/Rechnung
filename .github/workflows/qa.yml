@@ -1,0 +1,50 @@
+name: Stage – QA
+
+# Promoting develop → qa produces a release build (production configuration,
+# signed if secrets are available) that is tested by hand before going to main.
+on:
+  push:
+    branches: [qa]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-qa
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run tests (release build)
+        working-directory: Packages/GageKit
+        run: swift test -c release -Xswiftc -enable-testing --parallel
+
+  build:
+    needs: test
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      configuration: Release
+      environment: qa
+      artifact-name: Gage-qa-${{ github.run_number }}
+      retention-days: 30
+    secrets: inherit
+
+  checklist:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: QA checklist
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'MD'
+          ## QA build ready
+          Download the artifact and test it with docs/qa-checklist.md.
+          Once approved, open a pull request `qa → main`.
+          MD
