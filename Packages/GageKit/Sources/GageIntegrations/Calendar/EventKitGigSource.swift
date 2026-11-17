@@ -11,7 +11,10 @@ public enum CalendarAccessError: Error, Equatable, Sendable, LocalizedError {
         case .denied:
             "Gage hat keinen Zugriff auf deine Kalender. Erlaube ihn unter Systemeinstellungen › Datenschutz & Sicherheit › Kalender."
         case let .calendarNotFound(title):
-            "Der Kalender „\(title)“ wurde nicht gefunden."
+            """
+            Der Kalender „\(title)“ wurde nicht gefunden. \
+            Wähle deinen Gig-Kalender in den Einstellungen unter „Rechnungen & Kalender“.
+            """
         }
     }
 }
@@ -27,7 +30,9 @@ public actor EventKitGigSource: GigSource {
 
     public func gigs(in interval: DateInterval, calendarTitle: String) async throws -> [Gig] {
         try await requestAccessIfNeeded()
-        let calendars = store.calendars(for: .event).filter { $0.title == calendarTitle }
+        let calendars = store.calendars(for: .event).filter {
+            $0.title.compare(calendarTitle, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
         guard !calendars.isEmpty else { throw CalendarAccessError.calendarNotFound(calendarTitle) }
 
         let predicate = store.predicateForEvents(withStart: interval.start, end: interval.end, calendars: calendars)
@@ -48,7 +53,8 @@ public actor EventKitGigSource: GigSource {
 
     public func calendarTitles() async throws -> [String] {
         try await requestAccessIfNeeded()
-        return Array(Set(store.calendars(for: .event).map(\.title))).sorted()
+        return Array(Set(store.calendars(for: .event).map(\.title)))
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     private func requestAccessIfNeeded() async throws {

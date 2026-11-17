@@ -70,7 +70,10 @@ public protocol AppDataRepository: Sendable {
 }
 
 public protocol GigSource: Sendable {
+    /// Events in the calendar named `calendarTitle` (case-insensitive).
     func gigs(in interval: DateInterval, calendarTitle: String) async throws -> [Gig]
+    /// Names of all calendars on this Mac, for the selection in Settings.
+    func calendarTitles() async throws -> [String]
 }
 
 public protocol BankTransactionSource: Sendable {

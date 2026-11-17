@@ -7,7 +7,7 @@ public enum BunqError: Error, Equatable, Sendable, LocalizedError {
     case missingServerSignature
     case invalidServerSignature
     case untrustedHost(String)
-    case api(status: Int, message: String)
+    case api(operation: String, status: Int, message: String)
     case crypto(String)
     case unexpectedPayload(String)
 
@@ -18,7 +18,14 @@ public enum BunqError: Error, Equatable, Sendable, LocalizedError {
         case .missingServerSignature, .invalidServerSignature:
             "Die Antwort von bunq war nicht korrekt signiert und wurde verworfen."
         case let .untrustedHost(host): "Verbindung zu \(host) wurde blockiert."
-        case let .api(status, message): "bunq meldet Fehler \(status): \(message)"
+        case let .api(operation, status, message) where status == 400 || status == 401 || status == 403:
+            """
+            bunq hat „\(operation)“ abgelehnt (\(status)): \(message)
+            Prüfe den API-Schlüssel. Schlüssel aus der bunq-Sandbox beginnen mit „sandbox_“, \
+            echte Schlüssel erstellst du in der bunq-App. Wurde der Schlüssel auf bestimmte \
+            IP-Adressen beschränkt, muss deine aktuelle IP-Adresse erlaubt sein.
+            """
+        case let .api(operation, status, message): "bunq hat „\(operation)“ abgelehnt (\(status)): \(message)"
         case let .crypto(message): "Kryptografiefehler: \(message)"
         case let .unexpectedPayload(detail): "Unerwartete Antwort von bunq (\(detail))."
         }

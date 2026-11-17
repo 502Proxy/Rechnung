@@ -41,7 +41,7 @@ cd Packages/GageKit
 swift test
 ```
 
-Debug-Builds sprechen immer mit der **bunq-Sandbox**. Release-Builds verwenden die echte bunq-API.
+Ob Gage mit der echten bunq-API oder der **bunq-Sandbox** spricht, ergibt sich aus dem API-Schlüssel: Sandbox-Schlüssel beginnen mit `sandbox_`.
 
 ## Projektstruktur
 

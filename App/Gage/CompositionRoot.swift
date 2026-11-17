@@ -31,7 +31,7 @@ enum CompositionRoot {
         let storeURL = try EncryptedFileRepository.defaultFileURL()
         let archiveURL = storeURL.deletingLastPathComponent().appending(path: "Archiv", directoryHint: .isDirectory)
         let digest = SHA256Digest()
-        let bunq = BunqClient(environment: BuildConfiguration.bunqEnvironment, secrets: secrets)
+        let bunq = BunqClient(secrets: secrets)
 
         return AppDependencies(
             repository: EncryptedFileRepository(fileURL: storeURL, encryptor: encryptor),
@@ -48,12 +48,9 @@ enum CompositionRoot {
 
 enum BuildConfiguration {
     #if DEBUG
-    /// Debug builds talk to the bunq sandbox, so no real data is touched during development.
-    static let bunqEnvironment = BunqEnvironment.sandbox
     /// Unsigned debug and CI builds have no keychain access group.
     static let usesDataProtectionKeychain = false
     #else
-    static let bunqEnvironment = BunqEnvironment.production
     static let usesDataProtectionKeychain = true
     #endif
 }
