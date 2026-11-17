@@ -39,25 +39,38 @@ Die Promotion-Reihenfolge prüft der Job **Branch policy** in `ci.yml` automatis
 | `release.yml` | Tag `v*.*.*` auf `main` | Produktions-Release |
 | `build-macos.yml` | wird von den Stages aufgerufen | gemeinsamer Build: Signieren und Notarisieren, wenn Secrets vorhanden |
 
+## Merge-Strategie
+
+| Pull Request | Merge-Art | Grund |
+| --- | --- | --- |
+| `feature/*`, `fix/*` → `develop` | **Squash and merge** | ein sauberer Commit pro Änderung |
+| `develop` → `qa`, `qa` → `main` | **Create a merge commit** | die Stage-Branches behalten dieselbe Historie. Ein Squash würde sie auseinanderlaufen lassen |
+| `hotfix/*` → `main` | **Create a merge commit**, danach `main` → `develop` | der Fix landet auch in der Entwicklung |
+
 ## Einmalige Einrichtung in GitHub
 
-Diese Einstellungen lassen sich nicht über Dateien im Repository setzen. Bitte unter **Settings** einrichten:
+Das Skript `scripts/setup-github-repo.sh` richtet alles ein. Es braucht die GitHub CLI mit Admin-Rechten:
 
-1. **General → Default branch:** `develop`
-2. **General → Pull Requests:** nur „Allow squash merging“, „Automatically delete head branches“ aktivieren
-3. **Rules → Rulesets → New branch ruleset** für `main`, `qa`, `develop`:
-   - Restrict deletions, Block force pushes
-   - Require a pull request before merging (für `main` und `qa`: 1 Approval; bei Solo-Entwicklung 0)
-   - Require status checks to pass: `SwiftLint`, `Unit tests (GageKit)`, `Build app`, `Secret scan`, `Branch policy`, `Analyze (Swift)`
-   - Require branches to be up to date before merging
-4. **Environments:** `development`, `qa`, `production` anlegen. Für `production` „Required reviewers“ setzen und das Deployment auf Tags `v*` beschränken.
-5. **Secrets** (nur im Environment `qa` und `production`), sobald ein Apple Developer Account vorhanden ist:
-   - `MACOS_CERTIFICATE_P12_BASE64` – Developer-ID-Application-Zertifikat als Base64
-   - `MACOS_CERTIFICATE_PASSWORD`
-   - `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`
-6. **Code security:** Dependabot alerts, Secret scanning, Push protection und Private vulnerability reporting aktivieren.
+```bash
+brew install gh
+gh auth login
+scripts/setup-github-repo.sh
+```
 
-Ohne Signatur-Secrets bauen die Pipelines unsigniert (ad-hoc signiert). Ein Release wird dann nur als Entwurf angelegt.
+Das Skript lässt sich gefahrlos mehrfach ausführen. Es setzt:
+
+1. **Standard-Branch** `develop`, Squash- und Merge-Commits erlaubt, Rebase-Merge aus, Branches nach dem Merge löschen
+2. **Ruleset „Stage-Branches“** für `main`, `qa` und `develop`: kein Löschen, kein Force-Push, Änderungen nur per Pull Request, alle Threads erledigt, Pflicht-Checks `SwiftLint`, `Unit tests (GageKit)`, `Build app`, `Secret scan`, `Branch policy` und `Analyze (Swift)`, Branch muss aktuell sein
+3. **Environments**: `development` (nur von `develop`), `qa` (nur von `qa`), `production` (nur von Tags `v*`, Freigabe durch dich)
+4. **Sicherheit**: Dependabot-Warnungen und -Sicherheitsupdates, Secret Scanning mit Push Protection, Private Vulnerability Reporting
+
+Von Hand bleibt nur noch, sobald ein Apple Developer Account vorhanden ist: unter **Settings → Environments → qa / production** die Secrets anlegen.
+
+- `MACOS_CERTIFICATE_P12_BASE64`: Developer-ID-Application-Zertifikat als Base64 (`base64 -i cert.p12 | pbcopy`)
+- `MACOS_CERTIFICATE_PASSWORD`
+- `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`
+
+Ohne diese Secrets bauen die Pipelines unsigniert (ad-hoc signiert). Ein Release wird dann nur als Entwurf angelegt.
 
 ## Release erstellen
 

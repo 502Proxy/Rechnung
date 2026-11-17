@@ -11,7 +11,7 @@
 3. Kleine, in sich geschlossene Commits nach [Conventional Commits](https://www.conventionalcommits.org/de/):
    `feat(invoices): add cancellation invoice`, `fix(bunq): retry on 429`, `docs: …`
 4. Pull Request nach `develop` öffnen und die Vorlage ausfüllen. Die CI muss grün sein.
-5. Merge per **Squash and merge**, danach den Branch löschen.
+5. Feature-PRs per **Squash and merge** zusammenführen. Promotion-PRs (`develop → qa`, `qa → main`) per **Create a merge commit**, damit die Stage-Branches nicht auseinanderlaufen.
 
 Der Weg in die Produktion ist in [docs/branching.md](docs/branching.md) beschrieben.
 
