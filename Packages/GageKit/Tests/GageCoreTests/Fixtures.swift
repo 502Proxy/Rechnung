@@ -14,6 +14,18 @@ enum Fixtures {
         return date
     }
 
+    static func decimal(_ text: String) -> Decimal {
+        guard let value = Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")) else {
+            fatalError("Invalid fixture decimal \(text)")
+        }
+        return value
+    }
+
+    static func number(_ text: String) -> InvoiceNumber {
+        guard let value = InvoiceNumber(text) else { fatalError("Invalid fixture invoice number \(text)") }
+        return value
+    }
+
     static let berlin = TimeZone(identifier: "Europe/Berlin") ?? .gmt
 
     static func instant(_ iso: String, hour: Int, minute: Int = 0) -> Date {

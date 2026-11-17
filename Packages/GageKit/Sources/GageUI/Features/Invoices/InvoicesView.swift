@@ -37,7 +37,11 @@ struct InvoicesView: View {
                 if let id = selection, let invoice = model.data.invoice(withID: id) {
                     InvoiceDetailView(invoice: invoice)
                 } else {
-                    EmptyStateView(title: "Keine Rechnung ausgewählt", systemImage: "doc.text.magnifyingglass", message: "Wähle links eine Rechnung aus.")
+                    EmptyStateView(
+                        title: "Keine Rechnung ausgewählt",
+                        systemImage: "doc.text.magnifyingglass",
+                        message: "Wähle links eine Rechnung aus."
+                    )
                 }
             }
             .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)

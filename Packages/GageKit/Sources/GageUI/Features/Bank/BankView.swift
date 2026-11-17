@@ -14,7 +14,11 @@ struct BankView: View {
                 ContentUnavailableView {
                     Label("bunq ist noch nicht verbunden", systemImage: "building.columns")
                 } description: {
-                    Text("Verbinde dein Geschäftskonto. Gage erkennt dann Zahlungseingänge automatisch und ordnet Ausgaben für die EÜR zu. Gage braucht dafür nur Lesezugriff.")
+                    Text("""
+                    Verbinde dein Geschäftskonto. \
+                    Gage erkennt dann Zahlungseingänge automatisch und ordnet Ausgaben für die EÜR zu. \
+                    Gage braucht dafür nur Lesezugriff.
+                    """)
                 } actions: {
                     Button("bunq verbinden") { showsConnectSheet = true }.buttonStyle(.borderedProminent)
                 }
@@ -58,7 +62,11 @@ struct BankView: View {
         }
         .overlay {
             if transactions.isEmpty {
-                EmptyStateView(title: "Alles zugeordnet", systemImage: "checkmark.circle", message: "Neue Buchungen erscheinen hier nach dem Abrufen.")
+                EmptyStateView(
+                    title: "Alles zugeordnet",
+                    systemImage: "checkmark.circle",
+                    message: "Neue Buchungen erscheinen hier nach dem Abrufen."
+                )
             }
         }
     }

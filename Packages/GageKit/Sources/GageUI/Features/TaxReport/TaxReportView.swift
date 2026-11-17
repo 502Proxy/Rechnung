@@ -22,7 +22,11 @@ struct TaxReportView: View {
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12)], spacing: 12) {
                     KPITile(title: "Betriebseinnahmen", value: report.income.formatted(), footnote: "umsatzsteuerfrei nach § 19 UStG")
-                    KPITile(title: "Betriebsausgaben", value: report.totalExpenses.formatted(), footnote: "\(ExpenseCategory.allCases.count) Kategorien")
+                    KPITile(
+                        title: "Betriebsausgaben",
+                        value: report.totalExpenses.formatted(),
+                        footnote: "\(ExpenseCategory.allCases.count) Kategorien"
+                    )
                     KPITile(title: "Gewinn", value: report.profit.formatted(), footnote: "für die Einkommensteuererklärung", tone: Theme.accent)
                 }
                 HStack(alignment: .top, spacing: Theme.spacing) {
@@ -31,7 +35,10 @@ struct TaxReportView: View {
                     GroupBox("Aufstellung") { breakdown(report) }
                         .frame(width: 340)
                 }
-                Text("Einnahmen zählen in dem Jahr, in dem das Geld eingeht (§ 11 EStG). Übertrage die Werte in die Anlage EÜR in ELSTER. Gage ersetzt keine Steuerberatung.")
+                Text("""
+                Einnahmen zählen in dem Jahr, in dem das Geld eingeht (§ 11 EStG). \
+                Übertrage die Werte in die Anlage EÜR in ELSTER. Gage ersetzt keine Steuerberatung.
+                """)
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -63,10 +70,10 @@ struct TaxReportView: View {
     private func chart(_ report: ProfitReport) -> some View {
         Chart {
             ForEach(report.monthly) { month in
-                BarMark(x: .value("Monat", monthName(month.month)), y: .value("Betrag", NSDecimalNumber(decimal: month.income.decimalValue).doubleValue))
+                BarMark(x: .value("Monat", monthName(month.month)), y: .value("Betrag", euros(month.income)))
                     .foregroundStyle(by: .value("Art", "Einnahmen"))
                     .position(by: .value("Art", "Einnahmen"))
-                BarMark(x: .value("Monat", monthName(month.month)), y: .value("Betrag", NSDecimalNumber(decimal: month.expenses.decimalValue).doubleValue))
+                BarMark(x: .value("Monat", monthName(month.month)), y: .value("Betrag", euros(month.expenses)))
                     .foregroundStyle(by: .value("Art", "Ausgaben"))
                     .position(by: .value("Art", "Ausgaben"))
             }
@@ -109,6 +116,10 @@ struct TaxReportView: View {
         .fontWeight(bold ? .semibold : .regular)
     }
 
+    private func euros(_ money: Money) -> Double {
+        NSDecimalNumber(decimal: money.decimalValue).doubleValue
+    }
+
     private func monthName(_ month: Int) -> String {
         Calendar(identifier: .gregorian).shortMonthSymbols[month - 1]
     }
@@ -123,7 +134,7 @@ struct CSVDocument: FileDocument {
     }
 
     init(configuration: ReadConfiguration) throws {
-        text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self)
+        text = configuration.file.regularFileContents.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {

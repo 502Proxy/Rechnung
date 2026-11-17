@@ -11,7 +11,10 @@ struct GigsView: View {
             }
             Section("Gigs") {
                 if model.gigs.isEmpty {
-                    Text("Keine Termine gefunden. Lege im Kalender „\(model.data.settings.autoInvoice.calendarTitle)“ Termine mit „Gage: 800“ in der Notiz an.")
+                    Text("""
+                    Keine Termine gefunden. \
+                    Lege im Kalender „\(model.data.settings.autoInvoice.calendarTitle)“ Termine mit „Gage: 800“ in der Notiz an.
+                    """)
                         .foregroundStyle(.secondary)
                 }
                 ForEach(model.gigs) { gig in

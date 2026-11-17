@@ -51,7 +51,14 @@ struct DomainServiceTests {
     @Test("The invoice is due the day after the gig at the set time")
     func plannerTiming() {
         let planner = GigInvoicePlanner(timeZone: Fixtures.berlin)
-        let gig = Gig(id: "e", title: "Hochzeit", start: Fixtures.instant("2026-11-21", hour: 18), location: nil, fee: Money(cents: 1), customerName: nil)
+        let gig = Gig(
+            id: "e",
+            title: "Hochzeit",
+            start: Fixtures.instant("2026-11-21", hour: 18),
+            location: nil,
+            fee: Money(cents: 1),
+            customerName: nil
+        )
         let rule = AutoInvoiceRule(hour: 9)
         #expect(planner.plannedCreationDate(for: gig, rule: rule) == Fixtures.instant("2026-11-22", hour: 9))
         #expect(planner.gigsDue([gig], invoices: [], rule: rule, now: Fixtures.instant("2026-11-22", hour: 8, minute: 59)).isEmpty)
@@ -64,7 +71,10 @@ struct DomainServiceTests {
 
     @Test("The EÜR counts income when the money arrives")
     func profitReport() throws {
-        var paidLastYear = try Invoice(number: #require(InvoiceNumber("2025-020")), draft: Fixtures.draft(issued: "2025-12-20", service: "2025-12-19"))
+        var paidLastYear = try Invoice(
+            number: Fixtures.number("2025-020"),
+            draft: Fixtures.draft(issued: "2025-12-20", service: "2025-12-19")
+        )
         try paidLastYear.issue(on: Fixtures.date("2025-12-20"), archiveDigest: "a")
         try paidLastYear.markPaid(on: Fixtures.date("2026-01-05"))
 

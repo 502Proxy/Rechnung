@@ -4,7 +4,7 @@ import Testing
 
 @Suite("Invoice lifecycle")
 struct InvoiceTests {
-    private let number = InvoiceNumber(year: 2026, sequence: 14)!
+    private let number = Fixtures.number("2026-014")
 
     @Test("Validation names every problem")
     func validation() {
@@ -59,7 +59,12 @@ struct InvoiceTests {
     @Test("Totals are summed from the line items")
     func totals() throws {
         var draft = Fixtures.draft()
-        draft.lineItems.append(LineItem(description: "Anfahrt", quantity: Decimal(string: "120")!, unit: .kilometer, unitPrice: Money(cents: 30)))
+        draft.lineItems.append(LineItem(
+            description: "Anfahrt",
+            quantity: Fixtures.decimal("120"),
+            unit: .kilometer,
+            unitPrice: Money(cents: 30)
+        ))
         let invoice = try Invoice(number: number, draft: draft)
         #expect(invoice.total == Money(cents: 73600))
     }

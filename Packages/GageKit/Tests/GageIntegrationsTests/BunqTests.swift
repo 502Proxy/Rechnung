@@ -39,13 +39,24 @@ private actor FakeBunqServer: HTTPTransport {
                 ? #"{"Response":[{"Id":{"id":2}}]}"#
                 : #"{"Response":[{"Id":{"id":3}},{"Token":{"token":"session-token"}},{"UserPerson":{"id":42}}]}"#
         case ("GET", "/v1/user/42/monetary-account"):
-            json = #"{"Response":[{"MonetaryAccountBank":{"id":7,"status":"ACTIVE","description":"Business","alias":[{"type":"IBAN","value":"DE89370400440532013000","name":"Max"}]}}]}"#
+            json = #"""
+            {"Response":[{"MonetaryAccountBank":{
+              "id":7,"status":"ACTIVE","description":"Business",
+              "alias":[{"type":"IBAN","value":"DE89370400440532013000","name":"Max"}]
+            }}]}
+            """#
         case ("GET", "/v1/user/42/monetary-account/7/payment"):
             json = #"""
             {"Response":[
-              {"Payment":{"id":901,"created":"2026-11-17 09:12:45.123456","amount":{"value":"700.00","currency":"EUR"},"description":"Gage November danke!","counterparty_alias":{"display_name":"Club Kantine GmbH","iban":"DE02120300000000202051"}}},
-              {"Payment":{"id":900,"created":"2026-11-12 08:00:00.000000","amount":{"value":"-39.95","currency":"EUR"},"description":"Mobilfunk","counterparty_alias":{"display_name":"Telekom"}}},
-              {"Payment":{"id":800,"created":"2026-09-01 08:00:00.000000","amount":{"value":"-10.00","currency":"EUR"},"description":"alt","counterparty_alias":{"display_name":"Alt"}}}
+              {"Payment":{"id":901,"created":"2026-11-17 09:12:45.123456",
+                "amount":{"value":"700.00","currency":"EUR"},"description":"Gage November danke!",
+                "counterparty_alias":{"display_name":"Club Kantine GmbH","iban":"DE02120300000000202051"}}},
+              {"Payment":{"id":900,"created":"2026-11-12 08:00:00.000000",
+                "amount":{"value":"-39.95","currency":"EUR"},"description":"Mobilfunk",
+                "counterparty_alias":{"display_name":"Telekom"}}},
+              {"Payment":{"id":800,"created":"2026-09-01 08:00:00.000000",
+                "amount":{"value":"-10.00","currency":"EUR"},"description":"alt",
+                "counterparty_alias":{"display_name":"Alt"}}}
             ]}
             """#
         default:
@@ -58,8 +69,14 @@ private actor FakeBunqServer: HTTPTransport {
         let data = Data(json.utf8)
         var signature = try serverKey.sign(data)
         if tamperWithSignatures { signature = try serverKey.sign(Data("anders".utf8)) }
-        let url = URL(string: "https://public-api.sandbox.bunq.com")!
-        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["X-Bunq-Server-Signature": signature])!
+        guard let url = URL(string: "https://public-api.sandbox.bunq.com"),
+              let response = HTTPURLResponse(
+                  url: url,
+                  statusCode: status,
+                  httpVersion: "HTTP/1.1",
+                  headerFields: ["X-Bunq-Server-Signature": signature]
+              )
+        else { throw BunqError.invalidResponse }
         return (data, response)
     }
 }
@@ -95,7 +112,8 @@ struct BunqTests {
 
         try await client.connect(apiKey: "sandbox_api_key")
         let source = BunqConnection(client: client, accountIBAN: "DE89 3704 0044 0532 0130 00")
-        let transactions = try await source.transactions(since: LocalDate(year: 2026, month: 11, day: 1)!)
+        let since = try #require(LocalDate(year: 2026, month: 11, day: 1))
+        let transactions = try await source.transactions(since: since)
 
         #expect(transactions.map(\.id) == ["bunq-901", "bunq-900"])
         #expect(transactions.first?.amount == Money(cents: 70000))
@@ -111,7 +129,7 @@ struct BunqTests {
         #expect(try secrets.data(for: .bunqAPIKey) != nil)
         #expect(try secrets.data(for: .bunqClientPrivateKey) != nil)
         let installation = try #require(try secrets.data(for: .bunqInstallation))
-        #expect(String(decoding: installation, as: UTF8.self).contains("session-token") == false)
+        #expect(String(data: installation, encoding: .utf8)?.contains("session-token") == false)
     }
 
     @Test("Responses with a wrong server signature are discarded")
@@ -143,8 +161,8 @@ struct BunqTests {
     }
 
     @Test("Booking dates follow the user's time zone")
-    func bookingDates() {
-        let berlin = TimeZone(identifier: "Europe/Berlin")!
+    func bookingDates() throws {
+        let berlin = try #require(TimeZone(identifier: "Europe/Berlin"))
         #expect(BunqMapping.bookingDate(from: "2026-11-16 23:30:00.000000", timeZone: berlin)?.description == "2026-11-17")
         #expect(BunqMapping.bookingDate(from: "2026-11-16 10:00:00.000000", timeZone: berlin)?.description == "2026-11-16")
     }

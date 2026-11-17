@@ -98,7 +98,10 @@ private struct AutomationSettings: View {
             } header: {
                 Text("Apple Kalender")
             } footer: {
-                Text("Gage erstellt nur Entwürfe. Gesendet wird erst, wenn du die Rechnung geprüft hast. Gage liest den Kalender nur und ändert keine Termine.")
+                Text("""
+                Gage erstellt nur Entwürfe. Gesendet wird erst, wenn du die Rechnung geprüft hast. \
+                Gage liest den Kalender nur und ändert keine Termine.
+                """)
             }
         }
         .formStyle(.grouped)

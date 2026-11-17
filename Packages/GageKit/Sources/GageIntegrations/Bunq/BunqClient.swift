@@ -148,13 +148,27 @@ public actor BunqClient {
 
         if !installation.deviceRegistered {
             let body = try JSONSerialization.data(withJSONObject: ["description": deviceDescription, "secret": apiKey])
-            _ = try await send(method: "POST", path: "/device-server", body: body, token: installation.token, keyPair: keyPair, serverKey: installation.serverPublicKey)
+            _ = try await send(
+                method: "POST",
+                path: "/device-server",
+                body: body,
+                token: installation.token,
+                keyPair: keyPair,
+                serverKey: installation.serverPublicKey
+            )
             installation.deviceRegistered = true
             try secrets.set(JSONEncoder().encode(installation), for: .bunqInstallation)
         }
 
         let body = try JSONSerialization.data(withJSONObject: ["secret": apiKey])
-        let envelope = try await send(method: "POST", path: "/session-server", body: body, token: installation.token, keyPair: keyPair, serverKey: installation.serverPublicKey)
+        let envelope = try await send(
+            method: "POST",
+            path: "/session-server",
+            body: body,
+            token: installation.token,
+            keyPair: keyPair,
+            serverKey: installation.serverPublicKey
+        )
         guard let token = envelope.items.token, let userID = envelope.items.userID else {
             throw BunqError.unexpectedPayload("session-server")
         }

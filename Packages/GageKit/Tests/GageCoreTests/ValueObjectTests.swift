@@ -6,9 +6,9 @@ import Testing
 struct ValueObjectTests {
     @Test("Money rounds half up to the cent")
     func moneyRounding() {
-        #expect(Money(euros: Decimal(string: "10.005")!).cents == 1001)
+        #expect(Money(euros: Fixtures.decimal("10.005")).cents == 1001)
         #expect(Money(cents: 3333).multiplied(by: 3).cents == 9999)
-        #expect(Money(cents: 1000).multiplied(by: Decimal(string: "0.5")!).cents == 500)
+        #expect(Money(cents: 1000).multiplied(by: Fixtures.decimal("0.5")).cents == 500)
         #expect([Money(cents: 150), Money(cents: 250)].sum() == Money(cents: 400))
     }
 
@@ -74,7 +74,7 @@ struct ValueObjectTests {
     func localDateCodable() throws {
         let date = try #require(LocalDate(year: 2026, month: 11, day: 17))
         let data = try JSONEncoder().encode([date])
-        #expect(String(decoding: data, as: UTF8.self) == #"["2026-11-17"]"#)
+        #expect(String(data: data, encoding: .utf8) == #"["2026-11-17"]"#)
         #expect(try JSONDecoder().decode([LocalDate].self, from: data) == [date])
     }
 
