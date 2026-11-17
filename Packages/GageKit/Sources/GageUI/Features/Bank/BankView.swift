@@ -8,7 +8,9 @@ struct BankView: View {
 
     var body: some View {
         Group {
-            if model.data.settings.bankConnectionEnabled {
+            if model.data.settings.bankConnectionEnabled, model.data.settings.bankAccountIBAN == nil {
+                AccountSelection()
+            } else if model.data.settings.bankConnectionEnabled {
                 transactionsTable
             } else {
                 ContentUnavailableView {
@@ -26,7 +28,20 @@ struct BankView: View {
         }
         .navigationTitle("bunq Konto")
         .toolbar {
-            if model.data.settings.bankConnectionEnabled {
+            if model.data.settings.bankConnectionEnabled, model.data.settings.bankAccountIBAN != nil {
+                ToolbarItem(placement: .navigation) {
+                    Menu {
+                        ForEach(model.bankAccounts) { account in
+                            Button("\(account.name) · …\(account.iban.suffix(4))") {
+                                Task { await model.selectBankAccount(account) }
+                            }
+                        }
+                    } label: {
+                        Label(model.selectedBankAccount?.name ?? "Konto", systemImage: "building.columns")
+                    }
+                    .help("Konto wechseln. Buchungen anderer Konten werden aus Gage entfernt.")
+                    .task { await model.loadBankAccounts() }
+                }
                 ToolbarItem(placement: .principal) {
                     Picker("Ansicht", selection: $showsReviewOnly) {
                         Text("Zu prüfen (\(model.transactionsNeedingReview.count))").tag(true)
@@ -122,6 +137,48 @@ private struct ClassificationCell: View {
             get: { transaction.classification },
             set: { newValue in Task { await model.classify(transaction, as: newValue) } }
         )
+    }
+}
+
+/// Asks which bunq account belongs to the business, e.g. a sub-account for gigs.
+private struct AccountSelection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Welches Konto nutzt du für deine Gigs?").font(.title2.weight(.semibold))
+            Text("""
+            Gage liest nur dieses eine Konto. Buchungen anderer Konten, etwa deines privaten Hauptkontos, \
+            werden weder abgerufen noch gespeichert.
+            """)
+            .foregroundStyle(.secondary)
+            if model.bankAccounts.isEmpty {
+                ProgressView("Konten werden geladen …")
+            }
+            ForEach(model.bankAccounts) { account in
+                Button {
+                    Task { await model.selectBankAccount(account) }
+                } label: {
+                    HStack {
+                        Image(systemName: "building.columns").foregroundStyle(Theme.accent)
+                        VStack(alignment: .leading) {
+                            Text(account.name).fontWeight(.medium)
+                            Text(IBAN(account.iban)?.formatted ?? account.iban).font(.callout).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                    .padding(12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(.background, in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(.separator))
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: 560, maxHeight: .infinity, alignment: .top)
+        .task { await model.loadBankAccounts() }
     }
 }
 

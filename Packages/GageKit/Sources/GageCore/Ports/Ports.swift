@@ -48,19 +48,23 @@ public struct AppSettings: Hashable, Sendable, Codable {
     public var appLockEnabled: Bool
     public var autoLockAfterMinutes: Int
     public var bankConnectionEnabled: Bool
+    /// The account Gage reads. Other accounts (e.g. the private one) are never imported.
+    public var bankAccountIBAN: String?
 
     public init(
         autoInvoice: AutoInvoiceRule = AutoInvoiceRule(),
         defaultPaymentTermDays: Int = 14,
         appLockEnabled: Bool = true,
         autoLockAfterMinutes: Int = 5,
-        bankConnectionEnabled: Bool = false
+        bankConnectionEnabled: Bool = false,
+        bankAccountIBAN: String? = nil
     ) {
         self.autoInvoice = autoInvoice
         self.defaultPaymentTermDays = defaultPaymentTermDays
         self.appLockEnabled = appLockEnabled
         self.autoLockAfterMinutes = autoLockAfterMinutes
         self.bankConnectionEnabled = bankConnectionEnabled
+        self.bankAccountIBAN = bankAccountIBAN
     }
 }
 
@@ -76,14 +80,14 @@ public protocol GigSource: Sendable {
     func calendarTitles() async throws -> [String]
 }
 
-public protocol BankTransactionSource: Sendable {
-    func transactions(since date: LocalDate) async throws -> [BankTransaction]
-}
-
 /// A bank connection the user sets up and removes in the app.
-public protocol BankConnecting: BankTransactionSource {
+public protocol BankConnecting: Sendable {
     func connect(apiKey: String) async throws
     func disconnect() async throws
+    /// All own accounts the API key can see.
+    func accounts() async throws -> [BankAccount]
+    /// Bookings of exactly one account since `date`.
+    func transactions(since date: LocalDate, accountIBAN: String) async throws -> [BankTransaction]
 }
 
 public struct ArchivedDocument: Hashable, Sendable {

@@ -37,7 +37,7 @@ enum CompositionRoot {
             repository: EncryptedFileRepository(fileURL: storeURL, encryptor: encryptor),
             archive: FileInvoiceArchive(baseURL: archiveURL, digest: digest),
             gigSource: EventKitGigSource(),
-            bank: BunqConnection(client: bunq, accountIBAN: nil),
+            bank: BunqConnection(client: bunq),
             mailer: SharingServiceMailComposer(),
             notifier: SystemUserNotifier(),
             digest: digest,

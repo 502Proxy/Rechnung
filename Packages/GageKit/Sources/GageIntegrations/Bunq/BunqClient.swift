@@ -125,7 +125,12 @@ public actor BunqClient {
 
     public func accounts() async throws -> [BunqMonetaryAccountSummary] {
         let session = try await ensureSession()
-        let envelope = try await send(method: "GET", path: "/user/\(session.userID)/monetary-account", token: session.token)
+        let envelope = try await send(
+            method: "GET",
+            path: "/user/\(session.userID)/monetary-account",
+            query: [URLQueryItem(name: "count", value: "200")],
+            token: session.token
+        )
         return envelope.items.accounts
             .filter { $0.status == "ACTIVE" }
             .map { BunqMonetaryAccountSummary(id: $0.id, iban: $0.iban, description: $0.description) }

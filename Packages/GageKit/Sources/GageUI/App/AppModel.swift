@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GageCore
+import GageIntegrations
 import Observation
 import OSLog
 
@@ -17,6 +18,9 @@ public final class AppModel {
     public private(set) var isSyncingCalendar = false
     public private(set) var lastBankSync: Date?
     public private(set) var calendarTitles: [String] = []
+    /// The configured calendar does not exist; the gigs view asks for a choice.
+    public private(set) var calendarNeedsSelection = false
+    public private(set) var bankAccounts: [BankAccount] = []
     public var errorMessage: String?
     public var infoMessage: String?
 
@@ -202,11 +206,18 @@ public final class AppModel {
 
     // MARK: Bank
 
+    /// Connects bunq. Afterwards the user picks the account; with only one account it is selected automatically.
     public func connectBank(apiKey: String) async -> Bool {
         do {
             try await dependencies.bank.connect(apiKey: apiKey)
-            await updateSettings { $0.bankConnectionEnabled = true }
-            await syncBank()
+            await updateSettings {
+                $0.bankConnectionEnabled = true
+                $0.bankAccountIBAN = nil
+            }
+            await loadBankAccounts()
+            if bankAccounts.count == 1, let only = bankAccounts.first {
+                await selectBankAccount(only)
+            }
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -217,19 +228,48 @@ public final class AppModel {
     public func disconnectBank() async {
         do {
             try await dependencies.bank.disconnect()
-            await updateSettings { $0.bankConnectionEnabled = false }
+            await updateSettings {
+                $0.bankConnectionEnabled = false
+                $0.bankAccountIBAN = nil
+            }
+            bankAccounts = []
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
+    public func loadBankAccounts() async {
+        guard data.settings.bankConnectionEnabled else { return }
+        do {
+            bankAccounts = try await dependencies.bank.accounts()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Reads only this account from now on. Bookings of other accounts are removed from Gage.
+    public func selectBankAccount(_ account: BankAccount) async {
+        var removed = 0
+        await commit { data in removed = workflow.selectBankAccount(iban: account.iban, in: &data, now: dependencies.now()) }
+        if removed > 0 {
+            infoMessage = "\(removed) Buchung(en) anderer Konten wurden aus Gage entfernt."
+        }
+        await syncBank()
+    }
+
+    public var selectedBankAccount: BankAccount? {
+        guard let iban = data.settings.bankAccountIBAN else { return nil }
+        return bankAccounts.first { BookkeepingWorkflow.normalizedIBAN($0.iban) == iban }
+            ?? BankAccount(iban: iban, name: "Ausgewähltes Konto")
+    }
+
     public func syncBank() async {
-        guard data.settings.bankConnectionEnabled, !isSyncingBank else { return }
+        guard data.settings.bankConnectionEnabled, let accountIBAN = data.settings.bankAccountIBAN, !isSyncingBank else { return }
         isSyncingBank = true
         defer { isSyncingBank = false }
         do {
             let since = data.transactions.map(\.bookingDate).max()?.adding(days: -7) ?? today.adding(days: -90)
-            let incoming = try await dependencies.bank.transactions(since: since)
+            let incoming = try await dependencies.bank.transactions(since: since, accountIBAN: accountIBAN)
             var summary = BookkeepingWorkflow.BankImportSummary()
             await commit { data in summary = workflow.importTransactions(incoming, in: &data, now: dependencies.now()) }
             lastBankSync = dependencies.now()
@@ -266,6 +306,7 @@ public final class AppModel {
 
     public func selectCalendar(_ title: String) async {
         await updateSettings { $0.autoInvoice.calendarTitle = title }
+        calendarNeedsSelection = false
         await syncCalendar()
     }
 
@@ -280,6 +321,13 @@ public final class AppModel {
         let interval = DateInterval(start: now.addingTimeInterval(-30 * 86400), end: now.addingTimeInterval(90 * 86400))
         do {
             gigs = try await dependencies.gigSource.gigs(in: interval, calendarTitle: rule.calendarTitle)
+            calendarNeedsSelection = false
+        } catch CalendarAccessError.calendarNotFound(_) {
+            // Not an error dialog every 15 minutes: the gigs view asks for the calendar instead.
+            gigs = []
+            calendarNeedsSelection = true
+            await loadCalendarTitles()
+            return
         } catch {
             errorMessage = error.localizedDescription
             return

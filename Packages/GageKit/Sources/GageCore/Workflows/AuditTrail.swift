@@ -16,6 +16,7 @@ public struct AuditEntry: Hashable, Sendable, Codable {
         case profileUpdated
         case bankConnected
         case bankDisconnected
+        case bankAccountSelected
     }
 
     public let timestamp: Date

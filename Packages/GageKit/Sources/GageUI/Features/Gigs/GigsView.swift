@@ -6,6 +6,9 @@ struct GigsView: View {
 
     var body: some View {
         List {
+            if model.calendarNeedsSelection {
+                CalendarSelection()
+            }
             Section {
                 HowItWorks(calendarTitle: model.data.settings.autoInvoice.calendarTitle, hour: model.data.settings.autoInvoice.hour)
             }
@@ -28,6 +31,33 @@ struct GigsView: View {
                 .disabled(model.isSyncingCalendar)
         }
         .task { await model.syncCalendar() }
+    }
+}
+
+/// Shown when the configured calendar does not exist on this Mac.
+private struct CalendarSelection: View {
+    @Environment(AppModel.self) private var model
+    @State private var choice = ""
+
+    var body: some View {
+        Section {
+            Picker("Gig-Kalender", selection: $choice) {
+                Text("Bitte wählen").tag("")
+                ForEach(model.calendarTitles, id: \.self) { Text($0).tag($0) }
+            }
+            Button("Übernehmen") { Task { await model.selectCalendar(choice) } }
+                .buttonStyle(.borderedProminent)
+                .disabled(choice.isEmpty)
+        } header: {
+            Label(
+                "Der Kalender „\(model.data.settings.autoInvoice.calendarTitle)“ existiert auf diesem Mac nicht",
+                systemImage: "calendar.badge.exclamationmark"
+            )
+            .foregroundStyle(.orange)
+        } footer: {
+            Text("Wähle den Kalender, in dem deine Auftritte stehen. Du kannst ihn später in den Einstellungen ändern.")
+        }
+        .task { await model.loadCalendarTitles() }
     }
 }
 

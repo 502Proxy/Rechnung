@@ -20,7 +20,7 @@ enum BunqMapping {
         return LocalDate(instant, calendar: calendar)
     }
 
-    static func transaction(from payment: BunqPayment, timeZone: TimeZone = .current) -> BankTransaction? {
+    static func transaction(from payment: BunqPayment, accountIBAN: String, timeZone: TimeZone = .current) -> BankTransaction? {
         guard payment.amount.currency == "EUR",
               let value = Decimal(string: payment.amount.value, locale: Locale(identifier: "en_US_POSIX")),
               let date = bookingDate(from: payment.created, timeZone: timeZone)
@@ -31,20 +31,18 @@ enum BunqMapping {
             amount: Money(euros: value),
             counterpartyName: payment.counterpartyAlias?.displayName ?? "Unbekannt",
             counterpartyIBAN: payment.counterpartyAlias?.iban,
-            reference: payment.description
+            reference: payment.description,
+            accountIBAN: accountIBAN
         )
     }
 }
 
-/// Connects the business account at bunq and provides its payments as `BankTransaction`s.
+/// Connects to bunq and provides the payments of one selected account as `BankTransaction`s.
 public struct BunqConnection: BankConnecting {
     private let client: BunqClient
-    private let accountIBAN: String?
 
-    /// - Parameter accountIBAN: Account to read. If `nil`, the first active account is used.
-    public init(client: BunqClient, accountIBAN: String?) {
+    public init(client: BunqClient) {
         self.client = client
-        self.accountIBAN = accountIBAN
     }
 
     public func connect(apiKey: String) async throws {
@@ -55,12 +53,21 @@ public struct BunqConnection: BankConnecting {
         try await client.disconnect()
     }
 
-    public func transactions(since date: LocalDate) async throws -> [BankTransaction] {
-        let accounts = try await client.accounts()
-        let wanted = accountIBAN.map { $0.filter { !$0.isWhitespace }.uppercased() }
-        guard let account = accounts.first(where: { wanted == nil || $0.iban == wanted }) else {
-            throw BunqError.unexpectedPayload("Kein passendes Konto")
+    public func accounts() async throws -> [BankAccount] {
+        try await client.accounts().compactMap { account in
+            guard let iban = account.iban else { return nil }
+            let name = account.description?.trimmingCharacters(in: .whitespaces) ?? ""
+            return BankAccount(iban: iban, name: name.isEmpty ? "bunq-Konto" : name)
         }
-        return try await client.payments(accountID: account.id, since: date).compactMap { BunqMapping.transaction(from: $0) }
+    }
+
+    public func transactions(since date: LocalDate, accountIBAN: String) async throws -> [BankTransaction] {
+        let wanted = BookkeepingWorkflow.normalizedIBAN(accountIBAN)
+        let accounts = try await client.accounts()
+        guard let account = accounts.first(where: { $0.iban.map(BookkeepingWorkflow.normalizedIBAN) == wanted }) else {
+            throw BunqError.accountNotFound
+        }
+        return try await client.payments(accountID: account.id, since: date)
+            .compactMap { BunqMapping.transaction(from: $0, accountIBAN: wanted) }
     }
 }

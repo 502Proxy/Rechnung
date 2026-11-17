@@ -82,6 +82,31 @@ struct WorkflowTests {
         #expect(data.invoice(withID: invoice.id)?.paidOn == Fixtures.date("2026-11-17"))
     }
 
+    @Test("Selecting the business account removes bookings of other accounts")
+    func selectBankAccount() throws {
+        var data = Fixtures.appData()
+        let invoice = try issuedInvoice(in: &data)
+        let business = "DE89370400440532013000"
+        func booking(_ id: String, account: String?, amount: Int64 = -1000) -> BankTransaction {
+            BankTransaction(id: id, bookingDate: Fixtures.date("2026-11-10"), amount: Money(cents: amount),
+                            counterpartyName: "X", reference: "Y", accountIBAN: account)
+        }
+        var matched = booking("paid", account: nil, amount: 70000)
+        matched.classification = .invoicePayment(invoiceID: invoice.id)
+        data.transactions = [
+            booking("private", account: "NL91ABNA0417164300"),
+            booking("legacy", account: nil),
+            booking("business", account: business),
+            matched,
+        ]
+
+        let removed = workflow.selectBankAccount(iban: "de89 3704 0044 0532 0130 00", in: &data, now: now)
+        #expect(removed == 2)
+        #expect(data.transactions.map(\.id) == ["business", "paid"])
+        #expect(data.settings.bankAccountIBAN == business)
+        #expect(data.auditTrail.last?.action == .bankAccountSelected)
+    }
+
     @Test("Every change extends a verifiable audit trail")
     func auditTrail() throws {
         var data = Fixtures.appData()

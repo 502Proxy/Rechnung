@@ -44,10 +44,12 @@ private actor FakeBunqServer: HTTPTransport {
                 : #"{"Response":[{"Id":{"id":3}},{"Token":{"token":"session-token"}},{"UserPerson":{"id":42}}]}"#
         case ("GET", "/v1/user/42/monetary-account"):
             json = #"""
-            {"Response":[{"MonetaryAccountBank":{
-              "id":7,"status":"ACTIVE","description":"Business",
-              "alias":[{"type":"IBAN","value":"DE89370400440532013000","name":"Max"}]
-            }}]}
+            {"Response":[
+              {"MonetaryAccountBank":{"id":5,"status":"ACTIVE","description":"Main",
+                "alias":[{"type":"IBAN","value":"NL91ABNA0417164300","name":"Max"}]}},
+              {"MonetaryAccountBank":{"id":7,"status":"ACTIVE","description":"DJ",
+                "alias":[{"type":"IBAN","value":"DE89370400440532013000","name":"Max"}]}}
+            ]}
             """#
         case ("GET", "/v1/user/42/monetary-account/7/payment"):
             json = #"""
@@ -115,9 +117,14 @@ struct BunqTests {
         let client = BunqClient(secrets: secrets, transport: server)
 
         try await client.connect(apiKey: "sandbox_test_placeholder")
-        let source = BunqConnection(client: client, accountIBAN: "DE89 3704 0044 0532 0130 00")
+        let connection = BunqConnection(client: client)
+        let accounts = try await connection.accounts()
+        #expect(accounts.map(\.name) == ["Main", "DJ"])
+
+        // Only the selected DJ account is read, never the private main account (id 5).
         let since = try #require(LocalDate(year: 2026, month: 11, day: 1))
-        let transactions = try await source.transactions(since: since)
+        let transactions = try await connection.transactions(since: since, accountIBAN: "DE89 3704 0044 0532 0130 00")
+        #expect(transactions.allSatisfy { $0.accountIBAN == "DE89370400440532013000" })
 
         #expect(transactions.map(\.id) == ["bunq-901", "bunq-900"])
         #expect(transactions.first?.amount == Money(cents: 70000))
@@ -127,6 +134,7 @@ struct BunqTests {
         let requests = await server.requests
         #expect(requests.map { $0.url?.path() ?? "" }.prefix(3) == ["/v1/installation", "/v1/device-server", "/v1/session-server"])
         #expect(requests.allSatisfy { $0.url?.host() == "public-api.sandbox.bunq.com" })
+        #expect(!requests.contains { $0.url?.path().contains("/monetary-account/5/") ?? false })
         #expect(requests.dropFirst(3).allSatisfy { $0.value(forHTTPHeaderField: "X-Bunq-Client-Authentication") == "session-token" })
 
         // Secrets live in the Keychain abstraction; the session token is never stored.

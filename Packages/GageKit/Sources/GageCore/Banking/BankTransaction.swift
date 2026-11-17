@@ -35,6 +35,19 @@ public enum TransactionClassification: Hashable, Sendable, Codable {
     case privateTransaction
 }
 
+/// An own account at the bank, e.g. the main account or a sub-account for the DJ business.
+public struct BankAccount: Hashable, Sendable, Identifiable {
+    public let iban: String
+    public let name: String
+
+    public var id: String { iban }
+
+    public init(iban: String, name: String) {
+        self.iban = iban
+        self.name = name
+    }
+}
+
 /// A booking on the business account. `id` is the bank's own identifier, which prevents duplicate imports.
 public struct BankTransaction: Identifiable, Hashable, Sendable, Codable {
     public let id: String
@@ -44,6 +57,8 @@ public struct BankTransaction: Identifiable, Hashable, Sendable, Codable {
     public let counterpartyName: String
     public let counterpartyIBAN: String?
     public let reference: String
+    /// IBAN of the own account the booking belongs to. Older imports have none.
+    public let accountIBAN: String?
     public var classification: TransactionClassification
 
     public init(
@@ -53,6 +68,7 @@ public struct BankTransaction: Identifiable, Hashable, Sendable, Codable {
         counterpartyName: String,
         counterpartyIBAN: String? = nil,
         reference: String,
+        accountIBAN: String? = nil,
         classification: TransactionClassification = .unreviewed
     ) {
         self.id = id
@@ -61,6 +77,7 @@ public struct BankTransaction: Identifiable, Hashable, Sendable, Codable {
         self.counterpartyName = counterpartyName
         self.counterpartyIBAN = counterpartyIBAN
         self.reference = reference
+        self.accountIBAN = accountIBAN
         self.classification = classification
     }
 

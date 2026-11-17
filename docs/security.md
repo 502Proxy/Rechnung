@@ -12,6 +12,7 @@ Gage verarbeitet Finanz- und Kundendaten. Deshalb gilt: so wenig Zugriff wie mö
 | Manipulation der Datenbank | Die GCM-Authentifizierung erkennt jede Änderung. Ein verkettetes SHA-256-Änderungsprotokoll macht nachträgliche Eingriffe sichtbar |
 | Manipulation versendeter Rechnungen | Rechnungen sind nach dem Versand gesperrt. Die PDF ist schreibgeschützt und mit dem Finder-Schloss versehen, ihr SHA-256 wird mit der Rechnung gespeichert („Integrität prüfen“) |
 | Abhören oder Manipulation der bunq-Verbindung | TLS ≥ 1.2, ephemere URLSession ohne Cache und Cookies. Anfragen werden mit RSA-SHA256 signiert, jede Antwort mit dem Server-Schlüssel geprüft. Nur die bunq-Hosts sind erlaubt |
+| Private Kontodaten in der App | Gage liest nur das eine Konto, das du als Geschäftskonto auswählst. Buchungen anderer Konten werden weder abgerufen noch gespeichert. Beim Kontowechsel werden sie entfernt |
 | Diebstahl des bunq-Zugangs | API-Schlüssel und privater RSA-Schlüssel liegen nur im Schlüsselbund, das Session-Token nur im Arbeitsspeicher. Gage stellt ausschließlich lesende Anfragen |
 | Falsche Zuordnung von Zahlungen | Automatisch verbucht wird nur bei eindeutiger Rechnungsnummer **und** exaktem Betrag. Alles andere ist ein Vorschlag, den du bestätigst |
 | Ungewollter E-Mail-Versand | Gage speichert kein Mail-Passwort und sendet nie selbst. Du prüfst jede E-Mail in Apple Mail ([ADR 0004](adr/0004-mail-versand-ueber-apple-mail.md)) |

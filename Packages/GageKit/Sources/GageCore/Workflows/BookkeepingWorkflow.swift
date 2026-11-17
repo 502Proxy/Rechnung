@@ -128,6 +128,27 @@ public struct BookkeepingWorkflow: Sendable {
         return summary
     }
 
+    /// Selects the account Gage reads and removes bookings of other accounts.
+    /// Payments already matched to an invoice are kept, because they are evidence for the EÜR.
+    /// Returns the number of removed bookings.
+    @discardableResult
+    public func selectBankAccount(iban: String, in data: inout AppData, now: Date) -> Int {
+        let normalized = Self.normalizedIBAN(iban)
+        data.settings.bankAccountIBAN = normalized
+        let before = data.transactions.count
+        data.transactions.removeAll { transaction in
+            if case .invoicePayment = transaction.classification { return false }
+            return transaction.accountIBAN.map(Self.normalizedIBAN) != normalized
+        }
+        let removed = before - data.transactions.count
+        record(.bankAccountSelected, subject: "\(normalized.suffix(4)) removed=\(removed)", in: &data, now: now)
+        return removed
+    }
+
+    public static func normalizedIBAN(_ iban: String) -> String {
+        iban.filter { !$0.isWhitespace }.uppercased()
+    }
+
     public func suggestion(for transactionID: String, in data: AppData) -> PaymentMatch {
         guard let transaction = data.transactions.first(where: { $0.id == transactionID }) else { return .none }
         let openInvoices = data.invoices.filter { $0.issuedOn != nil && $0.paidOn == nil }

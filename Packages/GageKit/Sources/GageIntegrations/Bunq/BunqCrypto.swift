@@ -3,6 +3,7 @@ import Security
 
 public enum BunqError: Error, Equatable, Sendable, LocalizedError {
     case missingAPIKey
+    case accountNotFound
     case invalidResponse
     case missingServerSignature
     case invalidServerSignature
@@ -14,6 +15,7 @@ public enum BunqError: Error, Equatable, Sendable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingAPIKey: "Es ist kein bunq-API-Schlüssel hinterlegt."
+        case .accountNotFound: "Das ausgewählte Konto wurde bei bunq nicht gefunden. Bitte wähle das Konto erneut aus."
         case .invalidResponse: "bunq hat keine gültige Antwort geliefert."
         case .missingServerSignature, .invalidServerSignature:
             "Die Antwort von bunq war nicht korrekt signiert und wurde verworfen."
