@@ -40,7 +40,7 @@ struct BankView: View {
                 }
             }
         }
-        .sheet(isPresented: $showsConnectSheet) { ConnectBankSheet() }
+        .sheet(isPresented: $showsConnectSheet) { ConnectBankSheet().environment(model) }
     }
 
     private var transactionsTable: some View {
@@ -57,7 +57,7 @@ struct BankView: View {
                     .foregroundStyle(transaction.isIncoming ? .green : .primary)
             }
             .width(min: 90, ideal: 100)
-            TableColumn("Zuordnung") { ClassificationCell(transaction: $0) }
+            TableColumn("Zuordnung") { ClassificationCell(model: model, transaction: $0) }
                 .width(min: 220, ideal: 260)
         }
         .overlay {
@@ -72,8 +72,9 @@ struct BankView: View {
     }
 }
 
+/// Table cells are hosted by NSTableView, so the model is passed in rather than read from the environment.
 private struct ClassificationCell: View {
-    @Environment(AppModel.self) private var model
+    let model: AppModel
     let transaction: BankTransaction
 
     var body: some View {

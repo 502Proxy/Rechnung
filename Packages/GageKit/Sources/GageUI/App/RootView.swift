@@ -76,7 +76,10 @@ public struct RootView: View {
             }
         }
         .sheet(item: $navigation.editor) { request in
+            // Sheets on macOS get their own window. Pass the model explicitly.
             InvoiceEditorView(request: request)
+                .environment(model)
+                .environment(navigation)
         }
         .alert(
             "Hinweis",
