@@ -91,7 +91,12 @@ private struct AutomationSettings: View {
             }
             Section {
                 Toggle("Rechnungen aus dem Kalender erstellen", isOn: binding(\.autoInvoice.isEnabled))
-                TextField("Kalender", text: binding(\.autoInvoice.calendarTitle))
+                Picker("Gig-Kalender", selection: Binding(
+                    get: { model.data.settings.autoInvoice.calendarTitle },
+                    set: { title in Task { await model.selectCalendar(title) } }
+                )) {
+                    ForEach(calendarOptions, id: \.self) { Text($0).tag($0) }
+                }
                 Picker("Erstellen am Folgetag um", selection: binding(\.autoInvoice.hour)) {
                     ForEach(6...20, id: \.self) { Text(String(format: "%02d:00 Uhr", $0)).tag($0) }
                 }
@@ -105,6 +110,13 @@ private struct AutomationSettings: View {
             }
         }
         .formStyle(.grouped)
+        .task { await model.loadCalendarTitles() }
+    }
+
+    /// All calendars on this Mac. The current setting stays selectable even if the calendar is gone.
+    private var calendarOptions: [String] {
+        let current = model.data.settings.autoInvoice.calendarTitle
+        return model.calendarTitles.contains(current) ? model.calendarTitles : [current] + model.calendarTitles
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {

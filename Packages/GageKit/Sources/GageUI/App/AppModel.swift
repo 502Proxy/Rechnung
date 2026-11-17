@@ -16,6 +16,7 @@ public final class AppModel {
     public private(set) var isSyncingBank = false
     public private(set) var isSyncingCalendar = false
     public private(set) var lastBankSync: Date?
+    public private(set) var calendarTitles: [String] = []
     public var errorMessage: String?
     public var infoMessage: String?
 
@@ -254,6 +255,19 @@ public final class AppModel {
     }
 
     // MARK: Calendar
+
+    public func loadCalendarTitles() async {
+        do {
+            calendarTitles = try await dependencies.gigSource.calendarTitles()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func selectCalendar(_ title: String) async {
+        await updateSettings { $0.autoInvoice.calendarTitle = title }
+        await syncCalendar()
+    }
 
     /// Reads the gig calendar and creates drafts for gigs that are due.
     public func syncCalendar() async {
