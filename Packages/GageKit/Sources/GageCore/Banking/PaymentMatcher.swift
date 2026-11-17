@@ -57,17 +57,24 @@ public struct PaymentMatcher: Sendable {
 
     // MARK: - Helpers
 
-    /// True if `reference` contains the number as "2026-015", "2026015", "2026/015" or "2026 015",
-    /// and it is not part of a longer number.
+    /// True if `reference` contains the number as a separate token, e.g. "RE 101126" or "Rechnung 2026/015".
+    /// "101126" does not match inside "101126_2" or "1011260".
     static func reference(_ reference: String, mentions number: InvoiceNumber) -> Bool {
-        let sequence = String(format: "%03d", number.sequence)
-        let candidates = ["-", "", "/", " "].map { "\(number.year)\($0)\(sequence)" }
+        var candidates = [number.value]
+        if number.value.contains("-") {
+            candidates += ["/", " ", ""].map { number.value.replacingOccurrences(of: "-", with: $0) }
+        }
+        // Letters may touch the number ("RE101126"), digits and "_" may not.
+        func isTokenCharacter(_ character: Character?) -> Bool {
+            guard let character else { return false }
+            return character.isNumber || character == "_"
+        }
         return candidates.contains { candidate in
             var searchRange = reference.startIndex..<reference.endIndex
             while let found = reference.range(of: candidate, options: .caseInsensitive, range: searchRange) {
                 let before = found.lowerBound > reference.startIndex ? reference[reference.index(before: found.lowerBound)] : nil
                 let after = found.upperBound < reference.endIndex ? reference[found.upperBound] : nil
-                if !(before?.isNumber ?? false), !(after?.isNumber ?? false) { return true }
+                if !isTokenCharacter(before), !isTokenCharacter(after) { return true }
                 searchRange = found.upperBound..<reference.endIndex
             }
             return false

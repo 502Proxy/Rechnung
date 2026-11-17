@@ -114,7 +114,7 @@ struct DomainServiceTests {
     func smallBusiness(revenue: Int64, expected: SmallBusinessStatus) throws {
         let invoices = try (1...10).map { index -> Invoice in
             var invoice = try Invoice(
-                number: #require(InvoiceNumber(year: 2026, sequence: index)),
+                number: #require(InvoiceNumber(String(format: "2026-%03d", index))),
                 draft: InvoiceDraft(
                     customerID: Fixtures.kantine.id,
                     issueDate: Fixtures.date("2026-06-01"),

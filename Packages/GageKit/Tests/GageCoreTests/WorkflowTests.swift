@@ -22,6 +22,7 @@ struct WorkflowTests {
     @Test("Numbers are assigned sequentially")
     func sequentialNumbers() throws {
         var data = Fixtures.appData()
+        data.settings.numberScheme = .yearSequence
         let first = try workflow.createInvoice(from: Fixtures.draft(), in: &data, now: now)
         let second = try workflow.createInvoice(from: Fixtures.draft(), in: &data, now: now)
         #expect(first.number.description == "2026-001")

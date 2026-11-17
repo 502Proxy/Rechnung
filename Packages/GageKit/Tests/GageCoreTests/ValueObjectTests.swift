@@ -78,12 +78,14 @@ struct ValueObjectTests {
         #expect(try JSONDecoder().decode([LocalDate].self, from: data) == [date])
     }
 
-    @Test("Invoice numbers continue without gaps per year")
-    func invoiceNumbers() throws {
-        let existing = ["2025-041", "2026-001", "2026-014"].compactMap(InvoiceNumber.init)
-        #expect(InvoiceNumber.next(after: existing, year: 2026)?.description == "2026-015")
-        #expect(InvoiceNumber.next(after: existing, year: 2027)?.description == "2027-001")
-        #expect(InvoiceNumber("2026-1000")?.sequence == 1000)
-        #expect(InvoiceNumber("26-001") == nil)
+    @Test("Invoice numbers accept common formats and reject unsafe characters")
+    func invoiceNumbers() {
+        #expect(InvoiceNumber(" 101126_2 ")?.value == "101126_2")
+        #expect(InvoiceNumber("2026-1000") != nil)
+        #expect(InvoiceNumber("") == nil)
+        #expect(InvoiceNumber("../etc") == nil)
+        #expect(InvoiceNumber("2026/015") == nil)
+        #expect(InvoiceNumber(".hidden") == nil)
+        #expect(InvoiceNumber(String(repeating: "1", count: 41)) == nil)
     }
 }

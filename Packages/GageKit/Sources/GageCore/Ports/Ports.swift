@@ -42,8 +42,9 @@ public struct AppData: Hashable, Sendable, Codable {
     }
 }
 
-public struct AppSettings: Hashable, Sendable, Codable {
+public struct AppSettings: Hashable, Sendable {
     public var autoInvoice: AutoInvoiceRule
+    public var numberScheme: InvoiceNumberScheme
     public var defaultPaymentTermDays: Int
     public var appLockEnabled: Bool
     public var autoLockAfterMinutes: Int
@@ -53,6 +54,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
     public init(
         autoInvoice: AutoInvoiceRule = AutoInvoiceRule(),
+        numberScheme: InvoiceNumberScheme = .invoiceDate,
         defaultPaymentTermDays: Int = 14,
         appLockEnabled: Bool = true,
         autoLockAfterMinutes: Int = 5,
@@ -60,11 +62,35 @@ public struct AppSettings: Hashable, Sendable, Codable {
         bankAccountIBAN: String? = nil
     ) {
         self.autoInvoice = autoInvoice
+        self.numberScheme = numberScheme
         self.defaultPaymentTermDays = defaultPaymentTermDays
         self.appLockEnabled = appLockEnabled
         self.autoLockAfterMinutes = autoLockAfterMinutes
         self.bankConnectionEnabled = bankConnectionEnabled
         self.bankAccountIBAN = bankAccountIBAN
+    }
+}
+
+extension AppSettings: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case autoInvoice, numberScheme, defaultPaymentTermDays, appLockEnabled
+        case autoLockAfterMinutes, bankConnectionEnabled, bankAccountIBAN
+    }
+
+    /// Settings added in later versions fall back to their defaults, so older stores stay readable.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = AppSettings()
+        autoInvoice = try container.decodeIfPresent(AutoInvoiceRule.self, forKey: .autoInvoice) ?? defaults.autoInvoice
+        numberScheme = try container.decodeIfPresent(InvoiceNumberScheme.self, forKey: .numberScheme) ?? defaults.numberScheme
+        defaultPaymentTermDays = try container.decodeIfPresent(Int.self, forKey: .defaultPaymentTermDays)
+            ?? defaults.defaultPaymentTermDays
+        appLockEnabled = try container.decodeIfPresent(Bool.self, forKey: .appLockEnabled) ?? defaults.appLockEnabled
+        autoLockAfterMinutes = try container.decodeIfPresent(Int.self, forKey: .autoLockAfterMinutes)
+            ?? defaults.autoLockAfterMinutes
+        bankConnectionEnabled = try container.decodeIfPresent(Bool.self, forKey: .bankConnectionEnabled)
+            ?? defaults.bankConnectionEnabled
+        bankAccountIBAN = try container.decodeIfPresent(String.self, forKey: .bankAccountIBAN)
     }
 }
 

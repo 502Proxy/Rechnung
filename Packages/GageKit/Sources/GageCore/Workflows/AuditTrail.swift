@@ -9,6 +9,7 @@ public struct AuditEntry: Hashable, Sendable, Codable {
         case invoiceCreated
         case invoiceUpdated
         case invoiceIssued
+        case invoiceImported
         case invoicePaid
         case paymentMatched
         case transactionClassified

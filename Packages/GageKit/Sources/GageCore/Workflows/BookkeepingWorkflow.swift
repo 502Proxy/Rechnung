@@ -11,6 +11,7 @@ public struct BookkeepingWorkflow: Sendable {
         case unknownCustomer
         case unknownTransaction
         case numberRangeExhausted
+        case duplicateNumber(InvoiceNumber)
         case incompleteProfile([String])
 
         public var errorDescription: String? {
@@ -18,7 +19,8 @@ public struct BookkeepingWorkflow: Sendable {
             case .unknownInvoice: "Die Rechnung wurde nicht gefunden."
             case .unknownCustomer: "Der Kunde wurde nicht gefunden."
             case .unknownTransaction: "Die Buchung wurde nicht gefunden."
-            case .numberRangeExhausted: "Für dieses Jahr ist keine Rechnungsnummer mehr frei."
+            case .numberRangeExhausted: "Für dieses Datum ist keine Rechnungsnummer mehr frei."
+            case let .duplicateNumber(number): "Die Rechnungsnummer \(number) ist bereits vergeben."
             case let .incompleteProfile(fields):
                 "Bitte ergänze in den Einstellungen: \(fields.joined(separator: ", "))."
             }
@@ -52,7 +54,7 @@ public struct BookkeepingWorkflow: Sendable {
         guard let customerID = draft.customerID, data.customer(withID: customerID) != nil else {
             throw WorkflowError.unknownCustomer
         }
-        guard let number = InvoiceNumber.next(after: data.invoices.map(\.number), year: draft.issueDate.year) else {
+        guard let number = data.settings.numberScheme.next(issueDate: draft.issueDate, existing: data.invoices.map(\.number)) else {
             throw WorkflowError.numberRangeExhausted
         }
         let invoice = try Invoice(number: number, draft: draft, source: source)
@@ -63,7 +65,16 @@ public struct BookkeepingWorkflow: Sendable {
 
     public func updateInvoice(id: UUID, with draft: InvoiceDraft, in data: inout AppData, now: Date) throws {
         guard let index = data.invoices.firstIndex(where: { $0.id == id }) else { throw WorkflowError.unknownInvoice }
+        let previousDate = data.invoices[index].issueDate
         try data.invoices[index].update(with: draft)
+        // A date-based number follows the invoice date as long as the invoice is a draft.
+        if data.settings.numberScheme == .invoiceDate, draft.issueDate != previousDate {
+            let others = data.invoices.filter { $0.id != id }.map(\.number)
+            guard let number = data.settings.numberScheme.next(issueDate: draft.issueDate, existing: others) else {
+                throw WorkflowError.numberRangeExhausted
+            }
+            try data.invoices[index].renumber(number)
+        }
         record(.invoiceUpdated, subject: data.invoices[index].number.description, in: &data, now: now)
     }
 
@@ -74,6 +85,30 @@ public struct BookkeepingWorkflow: Sendable {
         guard let index = data.invoices.firstIndex(where: { $0.id == id }) else { throw WorkflowError.unknownInvoice }
         try data.invoices[index].issue(on: today, archiveDigest: archived.sha256)
         record(.invoiceIssued, subject: "\(data.invoices[index].number) sha256=\(archived.sha256)", in: &data, now: now)
+    }
+
+    /// Takes over an earlier invoice with its original number. The original PDF must already be archived.
+    @discardableResult
+    public func importInvoice(
+        _ imported: ImportedInvoice,
+        archived: ArchivedDocument,
+        in data: inout AppData,
+        now: Date
+    ) throws -> Invoice {
+        guard let customerID = imported.draft.customerID, data.customer(withID: customerID) != nil else {
+            throw WorkflowError.unknownCustomer
+        }
+        guard !data.invoices.contains(where: { $0.number == imported.number }) else {
+            throw WorkflowError.duplicateNumber(imported.number)
+        }
+        var invoice = try Invoice(number: imported.number, draft: imported.draft, source: .imported(fileName: imported.fileName))
+        try invoice.issue(on: imported.draft.issueDate, archiveDigest: archived.sha256)
+        if let paidOn = imported.paidOn {
+            try invoice.markPaid(on: paidOn)
+        }
+        data.invoices.append(invoice)
+        record(.invoiceImported, subject: "\(imported.number) sha256=\(archived.sha256)", in: &data, now: now)
+        return invoice
     }
 
     public func markInvoicePaid(id: UUID, on date: LocalDate, in data: inout AppData, now: Date) throws {
@@ -225,5 +260,20 @@ public struct BookkeepingWorkflow: Sendable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         return calendar
+    }
+}
+
+/// An earlier invoice, checked by the user, ready for import.
+public struct ImportedInvoice: Hashable, Sendable {
+    public var number: InvoiceNumber
+    public var draft: InvoiceDraft
+    public var paidOn: LocalDate?
+    public var fileName: String
+
+    public init(number: InvoiceNumber, draft: InvoiceDraft, paidOn: LocalDate?, fileName: String) {
+        self.number = number
+        self.draft = draft
+        self.paidOn = paidOn
+        self.fileName = fileName
     }
 }

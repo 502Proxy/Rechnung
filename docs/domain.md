@@ -6,12 +6,33 @@ Jede Rechnung enthält:
 
 - Name und Anschrift von dir und vom Kunden
 - Steuernummer und Finanzamt
-- Rechnungsdatum und fortlaufende Rechnungsnummer (`JJJJ-NNN`, ohne Lücken je Jahr)
+- Rechnungsdatum und eine einmalig vergebene Rechnungsnummer
 - Leistungsdatum
 - Art und Umfang der Leistung, Entgelt
 - den Hinweis „Gemäß § 19 UStG wird keine Umsatzsteuer berechnet“
 
 Ohne Name, Anschrift und Steuernummer im Profil lässt sich keine Rechnung versenden.
+
+## Rechnungsnummern
+
+§ 14 Abs. 4 Nr. 4 UStG verlangt eine einmalige Nummer, keine lückenlose Folge. Gage bietet zwei Schemata (Einstellungen › Rechnungen & Kalender):
+
+| Schema | Beispiel | Regel |
+| --- | --- | --- |
+| Rechnungsdatum (Standard) | `101126`, `101126_2` | `TTMMJJ` des Rechnungsdatums, weitere Rechnungen am selben Tag mit `_2`, `_3` … |
+| Jahr und laufende Nummer | `2026-001` | je Jahr hochgezählt |
+
+Bei einem Entwurf folgt die datumsbasierte Nummer dem Rechnungsdatum. Nach dem Versand ist sie fest. Importierte Rechnungen behalten ihre ursprüngliche Nummer und werden bei der Vergabe neuer Nummern berücksichtigt.
+
+Erlaubt sind Buchstaben, Ziffern, `-`, `_` und `.`. Pfadtrenner und `..` sind verboten, weil die Nummer im Dateinamen des Archivs steht.
+
+## Import früherer Rechnungen
+
+- Rechnungen › „Alte Rechnungen importieren“: PDFs auswählen oder hineinziehen.
+- Gage liest Nummer, Rechnungsdatum, Leistungsdatum, Beschreibung, Stunden × Satz, Summe und Empfänger. Jede Rechnung wird vor der Übernahme geprüft.
+- Unbekannte Empfänger werden als Kunde angelegt. Der Spielort aus dem Dateinamen (`Rg_101126_Umbaubar.pdf`) wird als weiterer Name des Kunden gespeichert.
+- Die Original-PDF wird unverändert, schreibgeschützt und mit SHA-256 archiviert. Die Rechnung ist danach gesperrt.
+- Pages-Dateien zuerst als PDF exportieren: `scripts/export-pages-to-pdf.sh <Ordner>`.
 
 ## Unveränderbarkeit (GoBD)
 

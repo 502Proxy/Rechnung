@@ -32,7 +32,7 @@ public actor FileInvoiceArchive: InvoiceArchive {
 
     public func location(of number: InvoiceNumber) -> URL {
         baseURL
-            .appending(path: String(number.year), directoryHint: .isDirectory)
+            .appending(path: number.year.map(String.init) ?? "Sonstige", directoryHint: .isDirectory)
             .appending(path: "Rechnung_\(number).pdf")
     }
 

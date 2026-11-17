@@ -1,36 +1,79 @@
 import Foundation
 
-/// Sequential invoice number in the form `YYYY-NNN` (§ 14 Abs. 4 Nr. 4 UStG).
+/// An invoice number, unique per business (§ 14 Abs. 4 Nr. 4 UStG).
+///
+/// The law requires uniqueness, not a gapless sequence, so date-based numbers
+/// such as `101126` or `101126_2` are allowed. Imported invoices keep their
+/// original number.
 public struct InvoiceNumber: Hashable, Comparable, Sendable, CustomStringConvertible {
-    public let year: Int
-    public let sequence: Int
+    public let value: String
 
-    public init?(year: Int, sequence: Int) {
-        guard (2000...9999).contains(year), (1...99_999).contains(sequence) else { return nil }
-        self.year = year
-        self.sequence = sequence
-    }
-
-    public init?(_ string: String) {
-        let parts = string.split(separator: "-")
-        guard parts.count == 2, parts[0].count == 4, parts[1].count >= 3,
-              let year = Int(parts[0]), let sequence = Int(parts[1])
+    public init?(_ raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The number becomes part of the archive file name, so only safe characters are allowed:
+        // no path separators, no leading dot, no "..".
+        guard (1...40).contains(trimmed.count),
+              trimmed.first.map({ $0.isASCII && ($0.isLetter || $0.isNumber) }) == true,
+              !trimmed.contains(".."),
+              trimmed.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) })
         else { return nil }
-        self.init(year: year, sequence: sequence)
+        value = trimmed
     }
 
-    public var description: String {
-        String(format: "%04d-%03d", year, sequence)
+    public var description: String { value }
+
+    /// The year encoded in the number (`JJJJ-NNN` or `TTMMJJ[_n]`), used for archive folders.
+    public var year: Int? {
+        if value.range(of: #"^\d{4}-\d+$"#, options: .regularExpression) != nil {
+            return Int(value.prefix(4))
+        }
+        if value.range(of: #"^\d{6}(_\d+)?$"#, options: .regularExpression) != nil,
+           let shortYear = Int(value.dropFirst(4).prefix(2)) {
+            return 2000 + shortYear
+        }
+        return nil
     }
 
     public static func < (lhs: InvoiceNumber, rhs: InvoiceNumber) -> Bool {
-        (lhs.year, lhs.sequence) < (rhs.year, rhs.sequence)
+        lhs.value.localizedStandardCompare(rhs.value) == .orderedAscending
+    }
+}
+
+/// How new invoice numbers are formed.
+public enum InvoiceNumberScheme: String, Hashable, Sendable, Codable, CaseIterable, Identifiable {
+    /// Invoice date as `TTMMJJ`. Further invoices on the same day get `_2`, `_3`, …
+    case invoiceDate
+    /// Year and running number: `2026-001`, `2026-002`, …
+    case yearSequence
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .invoiceDate: "Rechnungsdatum (TTMMJJ, z. B. 101126, 101126_2)"
+        case .yearSequence: "Jahr und laufende Nummer (z. B. 2026-001)"
+        }
     }
 
-    /// The next free number in `year`. Numbers continue without gaps from the highest one issued so far.
-    public static func next(after existing: some Sequence<InvoiceNumber>, year: Int) -> InvoiceNumber? {
-        let highest = existing.filter { $0.year == year }.map(\.sequence).max() ?? 0
-        return InvoiceNumber(year: year, sequence: highest + 1)
+    /// The next free number. `existing` must contain all numbers ever issued, including imported ones.
+    public func next(issueDate: LocalDate, existing: some Sequence<InvoiceNumber>) -> InvoiceNumber? {
+        let taken = Set(existing.map(\.value))
+        switch self {
+        case .invoiceDate:
+            let base = String(format: "%02d%02d%02d", issueDate.day, issueDate.month, issueDate.year % 100)
+            if !taken.contains(base) { return InvoiceNumber(base) }
+            for suffix in 2...999 where !taken.contains("\(base)_\(suffix)") {
+                return InvoiceNumber("\(base)_\(suffix)")
+            }
+            return nil
+        case .yearSequence:
+            let prefix = String(format: "%04d-", issueDate.year)
+            let highest = taken
+                .filter { $0.hasPrefix(prefix) }
+                .compactMap { Int($0.dropFirst(prefix.count)) }
+                .max() ?? 0
+            return InvoiceNumber(prefix + String(format: "%03d", highest + 1))
+        }
     }
 }
 
@@ -125,6 +168,8 @@ public enum InvoiceSource: Hashable, Sendable, Codable {
     case manual
     /// Created from a calendar event; `eventID` is the event's external identifier.
     case gig(eventID: String)
+    /// An earlier invoice taken over from a PDF. The original file is archived unchanged.
+    case imported(fileName: String)
 }
 
 public enum InvoiceStatus: Hashable, Sendable, Codable {
@@ -174,7 +219,7 @@ public enum InvoiceError: Error, Equatable, Sendable, LocalizedError {
 /// only its payment status changes after that.
 public struct Invoice: Identifiable, Hashable, Sendable, Codable {
     public let id: UUID
-    public let number: InvoiceNumber
+    public private(set) var number: InvoiceNumber
     public let source: InvoiceSource
     public private(set) var customerID: UUID
     public private(set) var issueDate: LocalDate
@@ -248,6 +293,12 @@ public struct Invoice: Identifiable, Hashable, Sendable, Codable {
         paymentTermDays = draft.paymentTermDays
         lineItems = draft.lineItems
         note = draft.note
+    }
+
+    /// Drafts follow their invoice date when the number is date-based.
+    public mutating func renumber(_ newNumber: InvoiceNumber) throws {
+        guard isDraft else { throw InvoiceError.notEditable }
+        number = newNumber
     }
 
     /// Locks the invoice. Afterwards only the payment status can change.
