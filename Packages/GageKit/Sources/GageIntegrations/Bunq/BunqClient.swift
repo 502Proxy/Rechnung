@@ -14,13 +14,6 @@ public enum BunqEnvironment: String, Sendable, Codable, CaseIterable {
         }
     }
 
-    var baseURL: URL {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = host
-        components.path = "/v1"
-        return components.url ?? URL(fileURLWithPath: "/")
-    }
 }
 
 public protocol HTTPTransport: Sendable {
@@ -120,17 +113,20 @@ public actor BunqClient {
     /// Payments booked since `date`, newest first, at most `maxPages` × 200 entries.
     func payments(accountID: Int, since date: LocalDate, maxPages: Int = 20) async throws -> [BunqPayment] {
         let session = try await ensureSession()
-        var path = "/user/\(session.userID)/monetary-account/\(accountID)/payment?count=200"
+        var page = BunqPage(
+            path: "/user/\(session.userID)/monetary-account/\(accountID)/payment",
+            query: [URLQueryItem(name: "count", value: "200")]
+        )
         var collected: [BunqPayment] = []
 
         for page in 0..<maxPages {
             if page > 0 { try await Task.sleep(for: .milliseconds(1100)) } // bunq allows 3 GET requests per 3 s
-            let envelope = try await send(method: "GET", path: path, token: session.token)
+            let envelope = try await send(method: "GET", path: page.path, query: page.query, token: session.token)
             let payments = envelope.items.payments
             collected += payments
             let reachedStart = payments.contains { (BunqMapping.bookingDate(from: $0.created) ?? date) < date }
-            guard !reachedStart, let older = envelope.olderURL, let next = Self.relativePath(fromOlderURL: older) else { break }
-            path = next
+            guard !reachedStart, let older = envelope.olderURL, let next = BunqPage(olderURL: older) else { break }
+            page = next
         }
         return collected.filter { (BunqMapping.bookingDate(from: $0.created) ?? date) >= date }
     }
@@ -210,13 +206,14 @@ public actor BunqClient {
     private func send(
         method: String,
         path: String,
+        query: [URLQueryItem] = [],
         body: Data? = nil,
         token: String? = nil,
         keyPair: BunqKeyPair? = nil,
         serverKey: String? = nil,
         verifySignature: Bool = true
     ) async throws -> BunqEnvelope {
-        let request = try makeRequest(method: method, path: path, body: body, token: token, keyPair: keyPair)
+        let request = try makeRequest(method: method, path: path, query: query, body: body, token: token, keyPair: keyPair)
         let (data, response) = try await transport.send(request)
 
         if verifySignature, requireServerSignature {
@@ -238,15 +235,31 @@ public actor BunqClient {
         do {
             return try JSONDecoder().decode(BunqEnvelope.self, from: data)
         } catch {
-            throw BunqError.unexpectedPayload(path.components(separatedBy: "?")[0])
+            throw BunqError.unexpectedPayload(path)
         }
     }
 
-    private func makeRequest(method: String, path: String, body: Data?, token: String?, keyPair: BunqKeyPair?) throws -> URLRequest {
-        guard path.hasPrefix("/"), !path.contains(".."),
-              let url = URL(string: environment.baseURL.absoluteString + path),
-              url.host() == environment.host, url.scheme == "https"
-        else { throw BunqError.untrustedHost(path) }
+    private func makeRequest(
+        method: String,
+        path: String,
+        query: [URLQueryItem],
+        body: Data?,
+        token: String?,
+        keyPair: BunqKeyPair?
+    ) throws -> URLRequest {
+        // Scheme and host are fixed. Path and query are set as separate parts
+        // and encoded by URLComponents, never assembled from strings.
+        guard path.hasPrefix("/"), !path.contains(".."), !path.contains("?"), !path.contains("#") else {
+            throw BunqError.untrustedHost(path)
+        }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = environment.host
+        components.path = "/v1" + path
+        components.queryItems = query.isEmpty ? nil : query
+        guard let url = components.url, url.scheme == "https", url.host() == environment.host else {
+            throw BunqError.untrustedHost(environment.host)
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -275,11 +288,27 @@ public actor BunqClient {
         else { throw BunqError.missingServerSignature }
         return installation.serverPublicKey
     }
+}
 
-    /// Turns bunq's `older_url` ("/v1/user/1/…?older_id=5") into a path relative to `/v1`.
-    static func relativePath(fromOlderURL olderURL: String) -> String? {
-        guard olderURL.hasPrefix("/v1/") else { return nil }
-        return String(olderURL.dropFirst(3))
+/// One page of a bunq list endpoint: path relative to `/v1` plus query parameters.
+struct BunqPage: Equatable {
+    let path: String
+    let query: [URLQueryItem]
+
+    init(path: String, query: [URLQueryItem]) {
+        self.path = path
+        self.query = query
+    }
+
+    /// Reads bunq's `older_url` ("/v1/user/1/…?count=200&older_id=5").
+    /// Only relative paths below `/v1/` are accepted, never another host.
+    init?(olderURL: String) {
+        guard olderURL.hasPrefix("/v1/"),
+              let components = URLComponents(string: olderURL),
+              components.scheme == nil, components.host == nil
+        else { return nil }
+        path = String(components.path.dropFirst(3))
+        query = components.queryItems ?? []
     }
 }
 

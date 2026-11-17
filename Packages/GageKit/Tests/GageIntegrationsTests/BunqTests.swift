@@ -155,9 +155,11 @@ struct BunqTests {
 
     @Test("Pagination stays on the bunq host")
     func paginationPaths() {
-        #expect(BunqClient.relativePath(fromOlderURL: "/v1/user/1/monetary-account/2/payment?count=200&older_id=5")
-            == "/user/1/monetary-account/2/payment?count=200&older_id=5")
-        #expect(BunqClient.relativePath(fromOlderURL: "https://evil.example/v1/user") == nil)
+        let page = BunqPage(olderURL: "/v1/user/1/monetary-account/2/payment?count=200&older_id=5")
+        #expect(page?.path == "/user/1/monetary-account/2/payment")
+        #expect(page?.query == [URLQueryItem(name: "count", value: "200"), URLQueryItem(name: "older_id", value: "5")])
+        #expect(BunqPage(olderURL: "https://evil.example/v1/user") == nil)
+        #expect(BunqPage(olderURL: "//evil.example/v1/user") == nil)
     }
 
     @Test("Booking dates follow the user's time zone")
