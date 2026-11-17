@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Minimal permissions: see docs/security.md -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Outgoing HTTPS to the bunq API only; no incoming connections -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Read the gig calendar -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+	<!-- Export (CSV) to a location the user picks -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>

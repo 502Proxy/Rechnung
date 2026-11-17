@@ -1,0 +1,114 @@
+name: CI
+
+# Quality gate for every pull request and every stage branch.
+on:
+  pull_request:
+    branches: [develop, qa, main]
+  push:
+    branches: [develop, qa, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-policy:
+    name: Branch policy
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Enforce promotion path feature → develop → qa → main
+        env:
+          # Passed via env, never interpolated into the script (script injection protection).
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          case "$BASE_REF" in
+            main)
+              [[ "$HEAD_REF" == "qa" || "$HEAD_REF" == hotfix/* ]] || {
+                echo "::error::Nach main darf nur aus qa oder hotfix/* gemergt werden (war: $HEAD_REF)."; exit 1; } ;;
+            qa)
+              [[ "$HEAD_REF" == "develop" || "$HEAD_REF" == hotfix/* ]] || {
+                echo "::error::Nach qa darf nur aus develop oder hotfix/* gemergt werden (war: $HEAD_REF)."; exit 1; } ;;
+            develop)
+              [[ "$HEAD_REF" != "main" && "$HEAD_REF" != "qa" ]] || {
+                echo "::error::Rückwärts-Merges nach develop bitte über einen Sync-Branch."; exit 1; } ;;
+          esac
+          echo "Branch-Policy ok: $HEAD_REF → $BASE_REF"
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Install SwiftLint
+        run: command -v swiftlint >/dev/null || brew install swiftlint
+      - name: Lint
+        run: swiftlint lint --reporter github-actions-logging
+
+  test:
+    name: Unit tests (GageKit)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: xcodebuild -version && swift --version
+      - name: Run tests
+        working-directory: Packages/GageKit
+        run: swift test --parallel --enable-code-coverage
+      - name: Coverage summary
+        continue-on-error: true
+        working-directory: Packages/GageKit
+        run: |
+          set -euo pipefail
+          PROFDATA=$(find .build -name default.profdata | head -n1)
+          BINARY=$(find .build -path '*GageKitPackageTests.xctest/Contents/MacOS/GageKitPackageTests' | head -n1)
+          xcrun llvm-cov report "$BINARY" -instr-profile "$PROFDATA" -ignore-filename-regex='(\.build|Tests)/' | tee coverage.txt
+          { echo '### Testabdeckung'; echo '```'; tail -n 1 coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build app
+    needs: [lint, test]
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build (Debug, unsigned)
+        run: |
+          set -euo pipefail
+          xcodebuild build -quiet \
+            -project Gage.xcodeproj -scheme Gage -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY=""
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2 \
+            detect --source /repo --redact --verbose --no-banner

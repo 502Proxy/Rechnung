@@ -1,0 +1,839 @@
+<title>Gage Rechnungsapp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: macOS-Fenster (Titelleiste · Seitenleiste · Toolbar · Inhalt), auf dem Handy einspaltig mit horizontaler Navigation */
+:root{
+  --desk:#dfe4e3; --win:#f7f8f8; --side:#eceff0; --surface:#ffffff; --line:#dde2e2; --line-strong:#c9d0d0;
+  --fg:#17201f; --muted:#5d6968; --faint:#8a9594;
+  --accent:#0d6b66; --accent-soft:#e1efed; --accent-fg:#ffffff;
+  --ok:#1f7a3f; --ok-soft:#e3f2e7; --info:#2357a6; --info-soft:#e5ecf8; --warn:#9a5b00; --warn-soft:#fbefd9; --bad:#b3261e; --bad-soft:#fbe5e3;
+  --neutral-soft:#eef0f0; --expense:#c48a52;
+  --paper:#ffffff; --paper-ink:#1b1f1f; --paper-muted:#666e6e; --paper-line:#e2e5e5;
+  --shadow:0 24px 60px rgba(20,40,38,.18),0 2px 8px rgba(20,40,38,.08);
+  --f-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --desk:#101414; --win:#1b2020; --side:#202626; --surface:#242b2b; --line:#313a3a; --line-strong:#3f4a4a;
+  --fg:#e7eeed; --muted:#a2aeac; --faint:#76817f;
+  --accent:#4fb8ae; --accent-soft:#1d3634; --accent-fg:#0b1c1b;
+  --ok:#6fcf8e; --ok-soft:#1c3324; --info:#8fb0ee; --info-soft:#1e2a40; --warn:#e8b25c; --warn-soft:#3a2c14; --bad:#f08a80; --bad-soft:#3e1f1c;
+  --neutral-soft:#2c3434; --expense:#d6a272; --shadow:0 24px 60px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --desk:#101414; --win:#1b2020; --side:#202626; --surface:#242b2b; --line:#313a3a; --line-strong:#3f4a4a;
+  --fg:#e7eeed; --muted:#a2aeac; --faint:#76817f;
+  --accent:#4fb8ae; --accent-soft:#1d3634; --accent-fg:#0b1c1b;
+  --ok:#6fcf8e; --ok-soft:#1c3324; --info:#8fb0ee; --info-soft:#1e2a40; --warn:#e8b25c; --warn-soft:#3a2c14; --bad:#f08a80; --bad-soft:#3e1f1c;
+  --neutral-soft:#2c3434; --expense:#d6a272; --shadow:0 24px 60px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3); color-scheme:dark}
+
+*{box-sizing:border-box}
+svg[aria-hidden]{width:16px;height:16px;flex:none;vertical-align:-3px}
+.toast[hidden]{display:none}
+body{background:var(--desk);color:var(--fg);font-family:var(--f-ui);font-size:13.5px;line-height:1.45;
+  padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--f-num);font-size:.92em}
+
+.window{max-width:1320px;margin:0 auto;height:min(880px,calc(100vh - 48px));min-height:640px;display:grid;grid-template-rows:42px 1fr;
+  background:var(--win);border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.titlebar{display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--side);border-bottom:1px solid var(--line);position:relative}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.titlebar .t{position:absolute;left:50%;transform:translateX(-50%);font-weight:600;font-size:13px;color:var(--muted);white-space:nowrap}
+.chip-mock{margin-left:auto;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:99px;padding:2px 8px}
+
+.app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:0}
+.sidebar{background:var(--side);border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+.sidebar .sec{font-size:11px;font-weight:600;color:var(--faint);padding:14px 10px 4px;letter-spacing:.03em}
+.nav{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;padding:6px 10px;border-radius:7px;cursor:pointer;text-align:left;color:var(--fg)}
+.nav svg{width:16px;height:16px;flex:none;color:var(--accent)}
+.nav:hover{background:var(--neutral-soft)}
+.nav.active{background:var(--accent);color:var(--accent-fg)}.nav.active svg{color:var(--accent-fg)}
+.nav .badge{margin-left:auto;font-size:11px;font-weight:600;background:var(--bad);color:#fff;border-radius:99px;padding:0 6px;min-width:18px;text-align:center}
+.nav.active .badge{background:var(--accent-fg);color:var(--accent)}
+.side-foot{margin-top:auto;padding:12px 10px 4px;font-size:11.5px;color:var(--muted);display:grid;gap:6px}
+.side-foot .row{display:flex;align-items:center;gap:7px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
+
+.main{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0}
+.toolbar{display:flex;align-items:center;gap:10px;padding:12px 22px;border-bottom:1px solid var(--line);background:var(--win);flex-wrap:wrap}
+.toolbar h1{font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.toolbar .sub{color:var(--muted);font-size:12.5px}
+.toolbar .spacer{flex:1}
+.content{overflow:auto;padding:22px;min-width:0}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;padding:5px 12px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--faint)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:none;border-color:transparent;color:var(--accent)}
+.btn.ghost:hover{background:var(--accent-soft)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.btn svg{width:14px;height:14px}
+.kbd{font-size:11px;opacity:.75;margin-left:2px}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:99px;padding:2px 9px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-paid{background:var(--ok-soft);color:var(--ok)}.p-sent{background:var(--info-soft);color:var(--info)}
+.p-draft{background:var(--neutral-soft);color:var(--muted)}.p-over{background:var(--bad-soft);color:var(--bad)}
+.p-warn{background:var(--warn-soft);color:var(--warn)}.p-acc{background:var(--accent-soft);color:var(--accent)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.panel-h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-size:13.5px;margin:0;font-weight:600}
+.panel-b{padding:14px 16px}
+.grid{display:grid;gap:16px}
+.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cols-main{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+.muted{color:var(--muted)}.faint{color:var(--faint)}
+.small{font-size:12px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.kpi{background:var(--surface);padding:14px 16px;display:grid;gap:4px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:22px;font-weight:650;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.kpi .h{font-size:11.5px;color:var(--faint)}
+.kpi .v.bad{color:var(--bad)}
+.meter{height:8px;border-radius:99px;background:var(--neutral-soft);overflow:hidden;position:relative}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:99px}
+
+/* Listen */
+.list{display:grid}
+.li{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--line)}
+.li:first-child{border-top:0}
+.li .grow{flex:1;min-width:0}
+.li .ttl{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.icon-circle{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none}
+.icon-circle svg{width:16px;height:16px}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:11.5px;font-weight:600;color:var(--muted);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface);position:sticky;top:0;z-index:1}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--neutral-soft)}
+tbody tr.sel td{background:var(--accent-soft)}
+.tbl-wrap{overflow-x:auto}
+
+.seg{display:inline-flex;background:var(--neutral-soft);border-radius:8px;padding:2px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:4px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--muted)}
+.seg button.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+/* Rechnungen split */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
+.detail-actions{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+.paper-stage{background:var(--neutral-soft);padding:18px;border-radius:0 0 10px 10px;overflow-x:auto}
+
+/* Papier (Rechnungsvorschau) */
+.paper{background:var(--paper);color:var(--paper-ink);width:100%;max-width:560px;min-width:420px;margin:0 auto;aspect-ratio:1/1.414;padding:36px 38px;
+  box-shadow:0 6px 24px rgba(0,0,0,.14);font-family:"Inter",var(--f-ui);font-size:9.5px;line-height:1.5;display:flex;flex-direction:column}
+.paper .from-line{font-size:7.5px;color:var(--paper-muted);border-bottom:1px solid var(--paper-line);padding-bottom:2px;margin-bottom:6px;display:inline-block}
+.paper .head{display:flex;justify-content:space-between;gap:20px;margin-bottom:26px}
+.paper .brand{font-weight:700;font-size:13px;letter-spacing:-.01em}
+.paper .brand small{display:block;font-weight:400;font-size:8.5px;color:var(--paper-muted)}
+.paper .meta{display:grid;grid-template-columns:auto auto;gap:1px 12px;font-size:8.5px;align-self:end}
+.paper .meta span:nth-child(odd){color:var(--paper-muted)}
+.paper h3{font-size:15px;margin:0 0 4px;letter-spacing:-.01em}
+.paper .intro{margin:0 0 12px;color:var(--paper-muted)}
+.paper table th{background:transparent;color:var(--paper-muted);font-size:8px;border-bottom:1px solid var(--paper-ink);padding:5px 4px;position:static}
+.paper table td{border-bottom:1px solid var(--paper-line);padding:6px 4px;font-size:9px}
+.paper .tot{margin-left:auto;margin-top:10px;width:55%;display:grid;grid-template-columns:1fr auto;gap:3px 10px}
+.paper .tot .g{font-weight:700;font-size:11px;border-top:1px solid var(--paper-ink);padding-top:4px}
+.paper .ku{margin-top:14px;padding:7px 9px;background:#f2f4f4;border-radius:3px;font-size:8.5px}
+.paper .foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--paper-line);display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:7.5px;color:var(--paper-muted)}
+
+/* Editor */
+.editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.form{display:grid;gap:14px}
+.field{display:grid;gap:4px}
+.field label,.lbl{font-size:12px;font-weight:600;color:var(--muted)}
+.input,select.input,textarea.input{width:100%;border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;padding:6px 9px;min-width:0}
+textarea.input{resize:vertical;min-height:60px}
+.input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.row-f{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.items td{padding:5px 4px;border:0}
+.items th{position:static;padding:4px}
+.items .input{padding:5px 7px}
+.icon-btn{border:0;background:none;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;display:grid;place-items:center}
+.icon-btn:hover{background:var(--bad-soft);color:var(--bad)}
+.icon-btn svg{width:14px;height:14px}
+.hint{display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--fg);font-size:12.5px}
+.hint svg{width:16px;height:16px;color:var(--accent);flex:none;margin-top:1px}
+.hint.warn{background:var(--warn-soft)}.hint.warn svg{color:var(--warn)}
+.sticky{position:sticky;top:0}
+
+/* Kalender */
+.gig{display:flex;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.gig:first-child{border-top:0}
+.date-tile{width:52px;flex:none;border-radius:9px;border:1px solid var(--line);overflow:hidden;text-align:center;background:var(--surface)}
+.date-tile b{display:block;background:var(--bad);color:#fff;font-size:10px;letter-spacing:.06em;padding:1px 0;text-transform:uppercase}
+.date-tile span{display:block;font-size:20px;font-weight:650;padding:2px 0 3px}
+.gig .grow{flex:1;min-width:200px}
+.gig.past{opacity:.85}
+.switch{position:relative;width:34px;height:20px;flex:none}
+.switch input{opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1}
+.switch i{position:absolute;inset:0;background:var(--line-strong);border-radius:99px;transition:background .15s}
+.switch i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.switch input:checked+i{background:var(--accent)}
+.switch input:checked+i::after{transform:translateX(14px)}
+.switch input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.flow div{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface)}
+.flow b{display:block;font-size:12.5px;margin-bottom:2px}
+.flow small{color:var(--muted);font-size:11.5px}
+.flow em{font-style:normal;font-family:var(--f-num);font-size:11px;color:var(--accent);display:block;margin-bottom:4px}
+
+/* Bank */
+.bank-card{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px}
+.bunq-logo{width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#2a9d8f,#3a86ff 35%,#f4a261 70%,#e63946);display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none}
+.amt-in{color:var(--ok);font-weight:600}
+.amt-out{color:var(--fg)}
+select.mini{border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;padding:2px 6px;font-size:12.5px;max-width:100%}
+.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* EÜR */
+.euer-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.euer-row:last-child{border-bottom:0}
+.euer-row.total{font-weight:700;font-size:15px;border-top:2px solid var(--fg);border-bottom:0;padding-top:10px;margin-top:4px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+svg.chart{width:100%;height:auto;display:block}
+svg.chart text{fill:var(--muted);font-size:10.5px;font-family:var(--f-ui)}
+svg.chart .grid-l{stroke:var(--line);stroke-width:1}
+
+/* Settings */
+.set-sec{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;padding:20px 0;border-top:1px solid var(--line)}
+.set-sec:first-child{border-top:0;padding-top:0}
+.set-sec h2{font-size:14px;margin:0 0 4px}
+.radio-card{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;cursor:pointer;background:var(--surface)}
+.radio-card:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.radio-card input{margin-top:3px;accent-color:var(--accent)}
+.status-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* Modal & Toast */
+.overlay{position:fixed;inset:0;background:rgba(10,20,20,.38);display:grid;place-items:center;padding:20px;z-index:50;backdrop-filter:blur(2px)}
+.modal{background:var(--win);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow);width:min(560px,100%);max-height:calc(100vh - 40px);overflow:auto}
+.modal-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.modal-h h2{margin:0;font-size:15px}
+.modal-b{padding:16px 18px;display:grid;gap:12px}
+.modal-f{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.mail-field{display:grid;grid-template-columns:70px minmax(0,1fr);align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.mail-field span{color:var(--muted);font-size:12.5px}
+.mail-field input{border:0;background:none;padding:2px 0;min-width:0}
+.mail-field input:focus{outline:none}
+.attach{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--surface);font-size:12.5px;width:max-content;max-width:100%}
+.attach b{color:var(--bad);font-size:10px;border:1px solid currentColor;border-radius:3px;padding:0 3px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--win);padding:10px 16px;border-radius:9px;box-shadow:var(--shadow);font-size:13px;z-index:60;display:flex;gap:10px;align-items:center;max-width:calc(100% - 32px)}
+.toast svg{width:16px;height:16px;flex:none}
+
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+
+@media (max-width:1180px){
+  .editor,.split{grid-template-columns:minmax(0,1fr)}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .flow{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:900px){
+  .cols-main,.cols-2{grid-template-columns:minmax(0,1fr)}
+  .set-sec{grid-template-columns:minmax(0,1fr);gap:10px}
+}
+@media (max-width:760px){
+  body{padding-block:0}
+  .window{height:auto;min-height:0;border-radius:0;border-left:0;border-right:0;margin-left:calc(-1*max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1*max(16px,env(safe-area-inset-right,0px)))}
+  .titlebar .t{position:static;transform:none}
+  .lights{display:none}
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px 12px;gap:4px}
+  .sidebar .sec,.side-foot{display:none}
+  .nav{width:auto;white-space:nowrap}
+  .content{overflow:visible;padding:16px}
+  .toolbar{padding:12px 16px}
+  .kpis{grid-template-columns:minmax(0,1fr)}
+  .flow{grid-template-columns:minmax(0,1fr)}
+  .paper{min-width:360px;padding:24px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="window" role="application" aria-label="Gage Rechnungsapp">
+  <div class="titlebar">
+    <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="t">Gage</div>
+    <span class="chip-mock">Interaktives Mockup</span>
+  </div>
+  <div class="app">
+    <nav class="sidebar" id="sidebar" aria-label="Navigation"></nav>
+    <div class="main">
+      <header class="toolbar" id="toolbar"></header>
+      <main class="content" id="content"></main>
+    </div>
+  </div>
+</div>
+<div id="modal-root"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const TODAY = d("2026-11-17");
+function d(s){const [y,m,dd]=s.split("-").map(Number);return new Date(y,m-1,dd)}
+function iso(dt){return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0")}
+function addDays(s,n){const x=d(s);x.setDate(x.getDate()+n);return iso(x)}
+const fmtD = s => s ? d(s).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}) : "–";
+const fmtDShort = s => d(s).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"});
+const wd = s => d(s).toLocaleDateString("de-DE",{weekday:"short"});
+const mon = s => d(s).toLocaleDateString("de-DE",{month:"short"}).replace(".","");
+const EUR = new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"});
+const eur = n => EUR.format(n);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- Icons ---------- */
+const I = {
+  home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  doc:'<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 17h5"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .6 3.2 2.4 3.6 5.2"/>',
+  cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  bank:'<path d="M3 9.5 12 4l9 5.5M5 10v8M9.7 10v8M14.3 10v8M19 10v8M3 20.5h18"/>',
+  chart:'<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  send:'<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>',
+  check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  alert:'<path d="M12 3 2 20h20z"/><path d="M12 10v4.5M12 17.5v.01"/>',
+  bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  folder:'<path d="M3 6.5a1.5 1.5 0 0 1 1.5-1.5H9l2 2.2h8.5A1.5 1.5 0 0 1 21 8.7V18a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/>',
+  save:'<path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
+  sync:'<path d="M20 11a8 8 0 0 0-14.3-4.6L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.6L20 16M20 20v-4h-4"/>',
+  trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  lock:'<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.5v.01"/>',
+  pdf:'<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9 15h6M12 12v6"/>',
+  edit:'<path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-4-4L4 16z"/>',
+  euro:'<path d="M17.5 6.5A7 7 0 1 0 17.5 17.5"/><path d="M4 10.5h9M4 13.5h9"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+};
+const ic = (n,cls="") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="${cls}" aria-hidden="true">${I[n]}</svg>`;
+
+/* ---------- Beispieldaten ---------- */
+const ME = {name:"Max Beispiel",biz:"DJ & Live-Musik",street:"Lindenallee 14",city:"20259 Hamburg",tax:"43/123/45678",iban:"DE89 1001 1001 2624 5793 18",bic:"NTSBDEB1XXX",mail:"buchung@max-beispiel.example",phone:"0170 1234567"};
+const customers = [
+  {id:"c1",name:"Kulturzentrum Schlachthof e.V.",contact:"Buchhaltung",street:"Findorffstraße 51",city:"28215 Bremen",mail:"buchhaltung@schlachthof.example"},
+  {id:"c2",name:"Jana & Tom Lehmann",contact:"",street:"Am Gutshof 3",city:"18239 Sarnow",mail:"jana.lehmann@mail.example"},
+  {id:"c3",name:"Nordlicht Events GmbH",contact:"z. Hd. Frau Kessler",street:"Am Sandtorkai 12",city:"20457 Hamburg",mail:"rechnung@nordlicht-events.example"},
+  {id:"c4",name:"Club Kantine",contact:"Booking",street:"Hafenstraße 8",city:"20359 Hamburg",mail:"booking@club-kantine.example"},
+  {id:"c5",name:"Hotel Seeblick Grömitz",contact:"Veranstaltungsbüro",street:"Strandweg 1",city:"23743 Grömitz",mail:"events@seeblick.example"},
+  {id:"c6",name:"Hansestadt Lübeck, Kulturbüro",contact:"Herr Brandt",street:"Breite Straße 62",city:"23552 Lübeck",mail:"kulturbuero@luebeck.example"},
+];
+const cust = id => customers.find(c=>c.id===id);
+
+let seq=0;
+function inv(n,c,date,svc,desc,amt,status,paid){return {id:"i"+(++seq),num:"2026-"+String(n).padStart(3,"0"),customerId:c,date,serviceDate:svc,dueDays:14,
+  items:[{desc,qty:1,unit:"Pauschal",price:amt}],note:"",status,sentDate:status!=="draft"?date:null,paidDate:paid||null,gigId:null}}
+const invoices = [
+  inv(1,"c4","2026-01-12","2026-01-10","DJ-Set Clubnacht „Neujahr“, 23–5 Uhr",650,"sent","2026-01-20"),
+  inv(2,"c3","2026-02-03","2026-01-31","DJ & Moderation Jahresauftakt Nordlicht",1800,"sent","2026-02-14"),
+  inv(3,"c5","2026-02-22","2026-02-21","Live-Set Valentinsdinner",900,"sent","2026-03-02"),
+  inv(4,"c1","2026-03-15","2026-03-14","DJ-Set „Frühlingsrauschen“",750,"sent","2026-03-28"),
+  inv(5,"c4","2026-04-05","2026-04-04","DJ-Set Clubnacht",650,"sent","2026-04-15"),
+  inv(6,"c6","2026-05-18","2026-05-16","Bühnenprogramm Museumsnacht",1200,"sent","2026-06-10"),
+  inv(7,"c3","2026-06-07","2026-06-06","Sommerfest Nordlicht, DJ & Technik",2200,"sent","2026-06-20"),
+  inv(8,"c5","2026-07-12","2026-07-11","Live-Set Strandbar-Saisonfest",1400,"sent","2026-07-25"),
+  inv(9,"c6","2026-08-02","2026-08-01","Hafenfest Lübeck, Hauptbühne",1600,"sent","2026-08-29"),
+  inv(10,"c1","2026-08-23","2026-08-22","DJ-Set Open Air Hof",750,"sent","2026-09-03"),
+  inv(11,"c4","2026-09-14","2026-09-12","DJ-Set Clubnacht",700,"sent","2026-09-24"),
+  inv(12,"c3","2026-10-04","2026-10-03","Firmenjubiläum Nordlicht, DJ & Moderation",1900,"sent","2026-10-17"),
+  inv(13,"c5","2026-10-25","2026-10-24","Live-Set Herbstgala",950,"sent",null),
+  inv(14,"c4","2026-11-02","2026-10-31","DJ-Set Halloween-Clubnacht",700,"sent",null),
+  inv(15,"c1","2026-11-16","2026-11-15","DJ-Set „Herbstnacht“, 22–4 Uhr",800,"draft",null),
+];
+invoices[14].gigId="g1"; invoices[14].auto=true;
+invoices[14].items.push({desc:"Fahrtkosten Hamburg–Bremen (pauschal)",qty:1,unit:"Pauschal",price:60});
+
+const gigs = [
+  {id:"g1",date:"2026-11-15",time:"22:00",title:"Herbstnacht",place:"Kulturzentrum Schlachthof, Bremen",customerId:"c1",fee:800,auto:true},
+  {id:"g2",date:"2026-11-21",time:"18:00",title:"Hochzeit Lehmann",place:"Gut Sarnow",customerId:"c2",fee:1400,auto:true},
+  {id:"g3",date:"2026-11-28",time:"19:00",title:"Weihnachtsfeier Nordlicht Events",place:"Elbspeicher, Hamburg",customerId:"c3",fee:2000,auto:true},
+  {id:"g4",date:"2026-12-05",time:"23:00",title:"Clubnacht",place:"Club Kantine, Hamburg",customerId:"c4",fee:700,auto:true},
+  {id:"g5",date:"2026-12-31",time:"20:00",title:"Silvestergala",place:"Hotel Seeblick, Grömitz",customerId:"c5",fee:1800,auto:false},
+];
+
+const CATS = ["Equipment (GWG)","Software & Lizenzen","Musik & Medien","Reisekosten","Telekommunikation","Versicherungen","Werbung & Website"];
+let tseq=0;
+const tx = [];
+function T(date,party,ref,amount,extra){tx.push(Object.assign({id:"t"+(++tseq),date,party,ref,amount},extra||{}))}
+invoices.filter(i=>i.paidDate).forEach(i=>T(i.paidDate,cust(i.customerId).name,"RE "+i.num,total(i),{match:i.id}));
+T("2026-11-17","Club Kantine GmbH","Gage November danke!",700,{match:null,suggest:"i14"});
+for(let m=1;m<=11;m++){T("2026-"+String(m).padStart(2,"0")+"-12","Telekom Deutschland","Mobilfunk Rechnung "+m+"/2026",-39.95,{cat:"Telekommunikation"})}
+[["2026-01-05","AlphaTheta / rekordbox","Creative Plan Jahresabo",-119,"Software & Lizenzen"],
+ ["2026-01-15","Haftpflicht24 Versicherung","Berufshaftpflicht 2026",-148,"Versicherungen"],
+ ["2026-02-01","Hosting Nord","Website & Domain 2026",-72,"Werbung & Website"],
+ ["2026-02-14","Deutsche Bahn","Ticket HH–Bremen",-89,"Reisekosten"],
+ ["2026-03-04","Thomann","DJ-Controller DDJ",-549,"Equipment (GWG)"],
+ ["2026-03-20","Beatport","Tracks März",-45,"Musik & Medien"],
+ ["2026-06-07","Deutsche Bahn","Ticket HH–Lübeck",-64,"Reisekosten"],
+ ["2026-06-22","Beatport","Tracks Juni",-38,"Musik & Medien"],
+ ["2026-07-01","Thomann","Studiokopfhörer",-189,"Equipment (GWG)"],
+ ["2026-08-02","Aral","Tanken Lübeck",-72,"Reisekosten"],
+ ["2026-09-18","Beatport","Tracks September",-52,"Musik & Medien"],
+ ["2026-10-04","Aral","Tanken Hamburg",-81,"Reisekosten"],
+ ["2026-11-08","Beatport","Tracks November",-29,"Musik & Medien"],
+ ["2026-11-15","Shell","Tanken Bremen",-68,"Reisekosten"],
+].forEach(r=>T(r[0],r[1],r[2],r[3],{cat:r[4]}));
+T("2026-11-10","REWE Markt","Kartenzahlung",-23.40,{cat:null});
+
+/* ---------- Ableitungen ---------- */
+function total(i){return i.items.reduce((s,it)=>s+(+it.qty||0)*(+it.price||0),0)}
+function due(i){return addDays(i.date,+i.dueDays||14)}
+function status(i){
+  if(i.paidDate) return "paid";
+  if(i.status==="draft") return "draft";
+  if(d(due(i))<TODAY) return "over";
+  return "sent";
+}
+const ST = {paid:["Bezahlt","p-paid"],sent:["Gesendet","p-sent"],draft:["Entwurf","p-draft"],over:["Überfällig","p-over"]};
+const pill = s => `<span class="pill ${ST[s][1]}">${ST[s][0]}</span>`;
+function nextNum(){const max=Math.max(...invoices.map(i=>+i.num.split("-")[1]));return "2026-"+String(max+1).padStart(3,"0")}
+const year = s => s.slice(0,4)==="2026";
+function euer(){
+  const inc = tx.filter(t=>t.amount>0 && t.match && year(t.date));
+  const exp = tx.filter(t=>t.amount<0 && t.cat && t.cat!=="Privat" && year(t.date));
+  const income = inc.reduce((s,t)=>s+t.amount,0);
+  const byCat = {}; CATS.forEach(c=>byCat[c]=0);
+  exp.forEach(t=>byCat[t.cat]+=-t.amount);
+  const expenses = Object.values(byCat).reduce((a,b)=>a+b,0);
+  const months = Array.from({length:12},(_,m)=>({i:0,e:0}));
+  inc.forEach(t=>months[d(t.date).getMonth()].i+=t.amount);
+  exp.forEach(t=>months[d(t.date).getMonth()].e+=-t.amount);
+  return {income,expenses,profit:income-expenses,byCat,months};
+}
+const openTx = () => tx.filter(t=>(t.amount>0&&!t.match)||(t.amount<0&&t.cat===null));
+
+/* ---------- Zustand ---------- */
+const S = {view:"overview",filter:"all",selected:"i15",draft:null,txFilter:"review",syncing:false,
+  settings:{sendMode:"mail",autoMode:"review",calendar:"Gigs",time:"09:00"}};
+
+/* ---------- Rendering ---------- */
+const $ = id => document.getElementById(id);
+const NAV = [
+  ["overview","Übersicht","home"],["invoices","Rechnungen","doc"],["customers","Kunden","users"],
+  ["sec","Automatisierung"],["calendar","Gigs & Kalender","cal"],["bank","bunq Konto","bank"],
+  ["sec","Finanzamt"],["euer","Gewinnermittlung (EÜR)","chart"],["sec",""],["settings","Einstellungen","gear"]];
+
+function renderSidebar(){
+  const counts = {invoices:invoices.filter(i=>status(i)==="over"||status(i)==="draft").length, bank:openTx().length};
+  $("sidebar").innerHTML = NAV.map(n=>{
+    if(n[0]==="sec") return n[1]?`<div class="sec">${n[1]}</div>`:`<div class="sec"></div>`;
+    const active = S.view===n[0] || (S.view==="editor"&&n[0]==="invoices");
+    const b = counts[n[0]]?`<span class="badge">${counts[n[0]]}</span>`:"";
+    return `<button class="nav${active?" active":""}" data-go="${n[0]}" ${active?'aria-current="page"':""}>${ic(n[2])}<span>${n[1]}</span>${b}</button>`;
+  }).join("") + `<div class="side-foot">
+    <div class="row"><span class="dot"></span>bunq verbunden</div>
+    <div class="row"><span class="dot"></span>Kalender „${esc(S.settings.calendar)}“ aktiv</div>
+    <div class="row">${ic("lock")}<span>Daten lokal auf diesem Mac</span></div></div>`;
+  $("sidebar").querySelectorAll(".row svg").forEach(s=>{s.style.width="12px";s.style.height="12px"});
+}
+
+function toolbar(title,sub,actions){
+  $("toolbar").innerHTML = `<div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:""}</div><div class="spacer"></div>${actions||""}`;
+}
+const newBtn = `<button class="btn primary" data-act="new">${ic("plus")}Neue Rechnung <span class="kbd">⌘N</span></button>`;
+
+function render(){
+  renderSidebar();
+  const v = VIEWS[S.view]; v();
+}
+
+/* Übersicht */
+function vOverview(){
+  toolbar("Guten Morgen, Max","Dienstag, 17. November 2026",newBtn);
+  const e = euer();
+  const open = invoices.filter(i=>["sent","over"].includes(status(i)));
+  const openSum = open.reduce((s,i)=>s+total(i),0);
+  const over = invoices.filter(i=>status(i)==="over");
+  const overSum = over.reduce((s,i)=>s+total(i),0);
+  const umsatz = invoices.filter(i=>i.status!=="draft").reduce((s,i)=>s+total(i),0);
+  const limit = 25000, pct = Math.min(100,umsatz/limit*100);
+  const drafts = invoices.filter(i=>status(i)==="draft");
+  const unmatched = tx.filter(t=>t.amount>0&&!t.match);
+  const uncat = tx.filter(t=>t.amount<0&&t.cat===null);
+  const next = gigs.filter(g=>d(g.date)>=TODAY).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const todo = [];
+  drafts.forEach(i=>todo.push(`<div class="li"><div class="icon-circle" style="background:var(--accent-soft);color:var(--accent)">${ic("doc")}</div>
+    <div class="grow"><div class="ttl">Rechnung ${i.num} prüfen und senden</div><div class="small muted">${i.auto?"Automatisch aus Kalender erstellt":"Entwurf"} · ${esc(cust(i.customerId).name)} · ${eur(total(i))}</div></div>
+    <button class="btn sm primary" data-act="edit" data-id="${i.id}">Prüfen</button></div>`));
+  over.forEach(i=>todo.push(`<div class="li"><div class="icon-circle" style="background:var(--bad-soft);color:var(--bad)">${ic("alert")}</div>
+    <div class="grow"><div class="ttl">${i.num} ist seit ${(n=>n+(n===1?" Tag":" Tagen"))(Math.round((TODAY-d(due(i)))/864e5))} überfällig</div><div class="small muted">${esc(cust(i.customerId).name)} · ${eur(total(i))} · fällig am ${fmtD(due(i))}</div></div>
+    <button class="btn sm" data-act="remind" data-id="${i.id}">Erinnerung senden</button></div>`));
+  unmatched.forEach(t=>todo.push(`<div class="li"><div class="icon-circle" style="background:var(--warn-soft);color:var(--warn)">${ic("euro")}</div>
+    <div class="grow"><div class="ttl">Zahlungseingang ${eur(t.amount)} zuordnen</div><div class="small muted">${esc(t.party)} · „${esc(t.ref)}“ · Vorschlag: RE ${invoices.find(i=>i.id===t.suggest).num}</div></div>
+    <button class="btn sm" data-act="match" data-id="${t.id}">Zuordnen</button></div>`));
+  uncat.forEach(t=>todo.push(`<div class="li"><div class="icon-circle" style="background:var(--neutral-soft);color:var(--muted)">${ic("bank")}</div>
+    <div class="grow"><div class="ttl">Ausgabe ${eur(-t.amount)} kategorisieren</div><div class="small muted">${esc(t.party)} · ${fmtD(t.date)}</div></div>
+    <button class="btn sm" data-go="bank">Ansehen</button></div>`));
+
+  $("content").innerHTML = `<div class="grid">
+    <section class="kpis" aria-label="Kennzahlen">
+      <div class="kpi"><span class="l">Einnahmen 2026 (eingegangen)</span><span class="v">${eur(e.income)}</span><span class="h">nach Zuflussprinzip</span></div>
+      <div class="kpi"><span class="l">Offene Rechnungen</span><span class="v">${eur(openSum)}</span><span class="h">${open.length} Rechnung${open.length===1?"":"en"}</span></div>
+      <div class="kpi"><span class="l">Davon überfällig</span><span class="v ${overSum?"bad":""}">${eur(overSum)}</span><span class="h">${over.length} Rechnung${over.length===1?"":"en"}</span></div>
+      <div class="kpi"><span class="l">Vorläufiger Gewinn 2026</span><span class="v">${eur(e.profit)}</span><span class="h">Ausgaben ${eur(e.expenses)}</span></div>
+    </section>
+    <div class="grid cols-main">
+      <section class="panel"><div class="panel-h"><h2>Zu erledigen</h2><span class="pill p-acc">${todo.length}</span></div>
+        <div class="list">${todo.join("")||`<div class="empty">Alles erledigt.</div>`}</div></section>
+      <div class="grid" style="align-content:start">
+        ${next?`<section class="panel"><div class="panel-h"><h2>Nächster Gig</h2><span class="small muted" style="margin-left:auto">Apple Kalender</span></div>
+          <div class="gig" style="border:0"><div class="date-tile"><b>${mon(next.date)}</b><span>${d(next.date).getDate()}</span></div>
+            <div class="grow" style="min-width:0"><div class="ttl" style="font-weight:600">${esc(next.title)}</div><div class="small muted">${wd(next.date)}, ${next.time} Uhr · ${esc(next.place)}</div>
+            <div class="small" style="margin-top:6px">${next.auto?`${ic("check")} Rechnung über <b>${eur(next.fee)}</b> wird am <b>${fmtD(addDays(next.date,1))}</b> um ${S.settings.time} Uhr erstellt`:"Automatische Rechnung aus"}</div></div></div></section>`:""}
+        <section class="panel"><div class="panel-h"><h2>Kleinunternehmerregelung § 19 UStG</h2></div>
+          <div class="panel-b grid" style="gap:8px">
+            <div style="display:flex;justify-content:space-between;gap:8px" class="small"><span>Umsatz 2026</span><span class="num"><b>${eur(umsatz)}</b> von ${eur(limit)}</span></div>
+            <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="${limit}" aria-valuenow="${umsatz}"><i style="width:${pct}%"></i></div>
+            <div class="small muted">Bleibt dein Umsatz 2026 unter 25.000 €, giltst du auch 2027 als Kleinunternehmer. Gage warnt dich ab 90 %.</div>
+          </div></section>
+      </div>
+    </div>
+    <section class="panel"><div class="panel-h"><h2>Letzte Rechnungen</h2><button class="btn ghost sm" style="margin-left:auto" data-go="invoices">Alle anzeigen ${ic("arrow")}</button></div>
+      <div class="tbl-wrap">${invTable(invoices.slice().reverse().slice(0,5),false)}</div></section>
+  </div>`;
+}
+
+function invTable(list,selectable){
+  if(!list.length) return `<div class="empty">Keine Rechnungen in dieser Ansicht.</div>`;
+  return `<table><thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th class="r">Betrag</th><th>Status</th></tr></thead><tbody>
+  ${list.map(i=>`<tr class="click${selectable&&S.selected===i.id?" sel":""}" data-open="${i.id}" tabindex="0">
+    <td class="mono">${i.num}</td><td style="min-width:160px">${esc(cust(i.customerId).name)}<div class="small faint">${esc(i.items[0].desc)}</div></td>
+    <td class="num">${fmtD(i.date)}</td><td class="r num">${eur(total(i))}</td><td>${pill(status(i))}</td></tr>`).join("")}</tbody></table>`;
+}
+
+/* Rechnungen */
+function vInvoices(){
+  toolbar("Rechnungen",`${invoices.length} Rechnungen · gespeichert in ~/Dokumente/Gage/Rechnungen`,newBtn);
+  const F = [["all","Alle"],["draft","Entwürfe"],["sent","Gesendet"],["over","Überfällig"],["paid","Bezahlt"]];
+  const list = invoices.slice().reverse().filter(i=>S.filter==="all"||status(i)===S.filter);
+  if(!list.find(i=>i.id===S.selected)) S.selected = list[0]?list[0].id:null;
+  const sel = invoices.find(i=>i.id===S.selected);
+  $("content").innerHTML = `<div class="split">
+    <section class="panel"><div class="panel-h"><div class="seg" role="tablist">${F.map(f=>`<button role="tab" aria-selected="${S.filter===f[0]}" class="${S.filter===f[0]?"on":""}" data-filter="${f[0]}">${f[1]} <span class="faint">${f[0]==="all"?invoices.length:invoices.filter(i=>status(i)===f[0]).length}</span></button>`).join("")}</div></div>
+      <div class="tbl-wrap">${invTable(list,true)}</div></section>
+    ${sel?`<section class="panel">${detailActions(sel)}<div class="paper-stage">${paper(sel)}</div></section>`:""}
+  </div>`;
+}
+function detailActions(i){
+  const s = status(i), a=[];
+  if(s==="draft"){a.push(`<button class="btn primary" data-act="send" data-id="${i.id}">${ic("send")}Senden</button>`,`<button class="btn" data-act="edit" data-id="${i.id}">${ic("edit")}Bearbeiten</button>`)}
+  if(s==="over") a.push(`<button class="btn primary" data-act="remind" data-id="${i.id}">${ic("bell")}Zahlungserinnerung</button>`);
+  if(s==="sent"||s==="over") a.push(`<button class="btn" data-act="markpaid" data-id="${i.id}">${ic("check")}Als bezahlt markieren</button>`);
+  a.push(`<button class="btn" data-act="finder" data-id="${i.id}">${ic("folder")}Im Finder zeigen</button>`);
+  const info = s==="paid"?`Bezahlt am ${fmtD(i.paidDate)} · per bunq abgeglichen`:s==="draft"?(i.auto?"Automatisch aus Kalender erstellt":"Noch nicht versendet"):`Gesendet am ${fmtD(i.sentDate)} · fällig ${fmtD(due(i))}`;
+  return `<div class="detail-actions">${a.join("")}</div><div class="small muted" style="padding:8px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center">${pill(s)} ${info}</div>`;
+}
+
+function paper(i){
+  const c = cust(i.customerId)||{name:"Kunde wählen",street:"",city:""};
+  const sum = total(i);
+  return `<div class="paper" id="paper">
+    <div class="head"><div><div class="brand">${esc(ME.name)}<small>${esc(ME.biz)}</small></div></div>
+      <div class="small" style="text-align:right;font-size:8px;color:var(--paper-muted)">${esc(ME.street)}<br>${esc(ME.city)}<br>${esc(ME.mail)}<br>${esc(ME.phone)}</div></div>
+    <div class="head" style="margin-bottom:22px"><div><span class="from-line">${esc(ME.name)} · ${esc(ME.street)} · ${esc(ME.city)}</span><br>
+      <b>${esc(c.name)}</b>${c.contact?"<br>"+esc(c.contact):""}<br>${esc(c.street)}<br>${esc(c.city)}</div>
+      <div class="meta"><span>Rechnungsnr.</span><b class="mono">${esc(i.num)}</b><span>Rechnungsdatum</span><span>${fmtD(i.date)}</span><span>Leistungsdatum</span><span>${fmtD(i.serviceDate)}</span><span>Zahlbar bis</span><span>${fmtD(due(i))}</span></div></div>
+    <h3>Rechnung</h3><p class="intro">Vielen Dank für die Zusammenarbeit. Ich berechne Ihnen folgende Leistungen:</p>
+    <table><thead><tr><th style="width:24px">Pos.</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Gesamt</th></tr></thead><tbody>
+      ${i.items.map((it,k)=>`<tr><td>${k+1}</td><td>${esc(it.desc)||'<span style="color:var(--paper-muted)">Beschreibung</span>'}</td><td class="r num">${esc(it.qty)} ${esc(it.unit)}</td><td class="r num">${eur(+it.price||0)}</td><td class="r num">${eur((+it.qty||0)*(+it.price||0))}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="tot"><span>Zwischensumme</span><span class="num" style="text-align:right">${eur(sum)}</span><span>Umsatzsteuer</span><span style="text-align:right">0,00 €</span><span class="g">Rechnungsbetrag</span><span class="g num" style="text-align:right">${eur(sum)}</span></div>
+    <div class="ku">Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).</div>
+    ${i.note?`<p style="margin-top:10px">${esc(i.note)}</p>`:""}
+    <p style="margin-top:12px">Bitte überweisen Sie den Betrag bis zum ${fmtD(due(i))} unter Angabe der Rechnungsnummer <b>${esc(i.num)}</b>.</p>
+    <div class="foot"><div>${esc(ME.name)}<br>${esc(ME.street)}<br>${esc(ME.city)}</div><div>Bankverbindung: bunq<br>IBAN ${esc(ME.iban)}<br>BIC ${esc(ME.bic)}</div><div>Steuernummer<br>${esc(ME.tax)}<br>Finanzamt Hamburg-Nord</div></div>
+  </div>`;
+}
+
+/* Editor */
+function startDraft(prefill){
+  S.draft = Object.assign({id:null,num:nextNum(),customerId:"c2",date:iso(TODAY),serviceDate:iso(TODAY),dueDays:14,
+    items:[{desc:"",qty:1,unit:"Pauschal",price:0}],note:"",status:"draft",gigId:null},prefill||{});
+  S.view="editor"; render();
+}
+function vEditor(){
+  const D = S.draft, isNew = !D.id;
+  toolbar(isNew?"Neue Rechnung":"Rechnung "+D.num+" bearbeiten",`Nr. <span class="mono">${D.num}</span> wird fortlaufend vergeben`,
+    `<button class="btn" data-act="cancel">Abbrechen</button><button class="btn" data-act="save">${ic("save")}Speichern</button><button class="btn primary" data-act="saveSend">${ic("send")}Speichern & senden</button>`);
+  $("content").innerHTML = `<div class="editor">
+   <div class="form">
+    ${D.auto?`<div class="hint">${ic("cal")}<div>Diese Rechnung wurde am ${fmtD(addDays(D.serviceDate,1))} um ${S.settings.time} Uhr aus deinem Kalendereintrag <b>„${esc((gigs.find(g=>g.id===D.gigId)||{}).title||"")}“</b> erstellt. Prüfe die Angaben und sende sie ab.</div></div>`:""}
+    <section class="panel"><div class="panel-h"><h2>Empfänger</h2></div><div class="panel-b form">
+      <div class="field"><label for="f-cust">Kunde</label><select class="input" id="f-cust" data-field="customerId">${customers.map(c=>`<option value="${c.id}"${c.id===D.customerId?" selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+      <div class="small muted" id="cust-mail">${esc(cust(D.customerId).mail)}</div>
+    </div></section>
+    <section class="panel"><div class="panel-h"><h2>Daten</h2></div><div class="panel-b row-f">
+      <div class="field"><label for="f-date">Rechnungsdatum</label><input class="input" type="date" id="f-date" data-field="date" value="${D.date}"></div>
+      <div class="field"><label for="f-svc">Leistungsdatum</label><input class="input" type="date" id="f-svc" data-field="serviceDate" value="${D.serviceDate}"></div>
+      <div class="field"><label for="f-due">Zahlungsziel</label><select class="input" id="f-due" data-field="dueDays">${[7,14,30].map(n=>`<option value="${n}"${+D.dueDays===n?" selected":""}>${n} Tage</option>`).join("")}</select></div>
+    </div></section>
+    <section class="panel"><div class="panel-h"><h2>Leistungen</h2><span class="small muted" style="margin-left:auto">Summe <b class="num" id="ed-sum">${eur(total(D))}</b></span></div>
+      <div class="panel-b"><div class="tbl-wrap"><table class="items"><thead><tr><th>Beschreibung</th><th style="width:70px">Menge</th><th style="width:110px">Einheit</th><th style="width:110px">Preis €</th><th style="width:30px"></th></tr></thead><tbody>
+      ${D.items.map((it,k)=>`<tr><td style="min-width:180px"><input class="input" id="it-d-${k}" aria-label="Beschreibung Position ${k+1}" data-item="${k}" data-key="desc" value="${esc(it.desc)}" placeholder="z. B. DJ-Set 4 Stunden"></td>
+        <td><input class="input num" id="it-q-${k}" aria-label="Menge" type="number" min="0" step="0.5" data-item="${k}" data-key="qty" value="${it.qty}"></td>
+        <td><select class="input" id="it-u-${k}" aria-label="Einheit" data-item="${k}" data-key="unit">${["Pauschal","Std.","Stück","km"].map(u=>`<option${u===it.unit?" selected":""}>${u}</option>`).join("")}</select></td>
+        <td><input class="input num" id="it-p-${k}" aria-label="Einzelpreis" type="number" min="0" step="10" data-item="${k}" data-key="price" value="${it.price}"></td>
+        <td><button class="icon-btn" data-act="delItem" data-k="${k}" aria-label="Position entfernen">${ic("trash")}</button></td></tr>`).join("")}
+      </tbody></table></div>
+      <button class="btn ghost sm" data-act="addItem" style="margin-top:8px">${ic("plus")}Position hinzufügen</button></div></section>
+    <section class="panel"><div class="panel-h"><h2>Hinweis auf der Rechnung</h2><span class="small faint" style="margin-left:auto">optional</span></div><div class="panel-b">
+      <textarea class="input" id="f-note" data-field="note" placeholder="z. B. Danke für den tollen Abend!">${esc(D.note)}</textarea></div></section>
+    <div class="hint">${ic("info")}<div>Der Hinweis zur Kleinunternehmerregelung (§ 19 UStG) und alle Pflichtangaben nach § 14 UStG werden automatisch ergänzt.</div></div>
+   </div>
+   <div class="sticky"><div class="panel"><div class="panel-h"><h2>Vorschau</h2><span class="small muted" style="margin-left:auto">Rechnung_${D.num}.pdf</span></div><div class="paper-stage" id="paper-wrap">${paper(D)}</div></div></div>
+  </div>`;
+}
+function refreshPreview(){
+  $("paper-wrap").innerHTML = paper(S.draft);
+  $("ed-sum").textContent = eur(total(S.draft));
+  const cm=$("cust-mail"); if(cm) cm.textContent = cust(S.draft.customerId).mail;
+}
+function commitDraft(){
+  const D = S.draft;
+  if(!D.items.some(it=>it.desc.trim() && +it.price>0)){toast("Füge mindestens eine Leistung mit Preis hinzu.","alert");return null}
+  if(D.id){const k=invoices.findIndex(i=>i.id===D.id);invoices[k]=Object.assign({},D,{items:D.items.map(x=>({...x}))});return invoices[k]}
+  const n = Object.assign({},D,{id:"i"+(++seq),items:D.items.map(x=>({...x})),status:"draft",sentDate:null,paidDate:null});
+  invoices.push(n); if(n.gigId){const g=gigs.find(g=>g.id===n.gigId); if(g) g.invoiceId=n.id}
+  return n;
+}
+
+/* Kunden */
+function vCustomers(){
+  toolbar("Kunden",customers.length+" Kunden",`<button class="btn" data-act="noop">${ic("plus")}Kunde anlegen</button>`);
+  $("content").innerHTML = `<section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Kunde</th><th>E-Mail für Rechnungen</th><th class="r">Rechnungen</th><th class="r">Umsatz 2026</th><th class="r">Offen</th></tr></thead><tbody>
+  ${customers.map(c=>{const l=invoices.filter(i=>i.customerId===c.id&&i.status!=="draft");const o=l.filter(i=>!i.paidDate).reduce((s,i)=>s+total(i),0);
+    return `<tr><td style="min-width:180px"><b>${esc(c.name)}</b><div class="small faint">${esc(c.street)}, ${esc(c.city)}</div></td><td class="small">${esc(c.mail)}</td><td class="r num">${l.length}</td><td class="r num">${eur(l.reduce((s,i)=>s+total(i),0))}</td><td class="r num">${o?`<span style="color:var(--warn);font-weight:600">${eur(o)}</span>`:'<span class="faint">–</span>'}</td></tr>`}).join("")}
+  </tbody></table></div></section>`;
+}
+
+/* Kalender */
+function vCalendar(){
+  toolbar("Gigs & Kalender",`Apple Kalender „${esc(S.settings.calendar)}“ · zuletzt gelesen heute, 08:55`,`<button class="btn" data-go="settings">${ic("gear")}Regeln</button>`);
+  const sorted = gigs.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  $("content").innerHTML = `<div class="grid">
+    <section class="flow" aria-label="Ablauf">
+      <div><em>1 · Kalender</em><b>Termin im Kalender „${esc(S.settings.calendar)}“</b><small>Notiz enthält „Gage: 1400“ und den Kunden</small></div>
+      <div><em>2 · Tag danach, ${S.settings.time}</em><b>Gage erstellt die Rechnung</b><small>mit fortlaufender Nummer, als PDF gespeichert</small></div>
+      <div><em>3 · Prüfen</em><b>${S.settings.autoMode==="review"?"Du bekommst eine Mitteilung":"Wird direkt versendet"}</b><small>${S.settings.autoMode==="review"?"Ein Klick auf „Senden“ genügt":"an die hinterlegte Kunden-E-Mail"}</small></div>
+      <div><em>4 · bunq</em><b>Zahlung wird erkannt</b><small>Rechnung springt auf „Bezahlt“</small></div>
+    </section>
+    <section class="panel"><div class="panel-h"><h2>Gigs</h2><span class="small muted" style="margin-left:auto">Automatisch abrechnen</span></div>
+      <div>${sorted.map(g=>{
+        const past = d(g.date)<TODAY, invc = invoices.find(i=>i.gigId===g.id);
+        let state;
+        if(invc) state = `${pill(status(invc))} <button class="btn sm ghost" data-open-inv="${invc.id}">RE ${invc.num}</button>`;
+        else if(g.auto) state = `<span class="pill p-acc">Geplant: ${fmtDShort(addDays(g.date,1))}, ${S.settings.time}</span>`;
+        else state = `<button class="btn sm" data-act="fromGig" data-id="${g.id}">Rechnung jetzt erstellen</button>`;
+        return `<div class="gig${past?" past":""}"><div class="date-tile"><b>${mon(g.date)}</b><span>${d(g.date).getDate()}</span></div>
+          <div class="grow"><div style="font-weight:600">${esc(g.title)}</div><div class="small muted">${wd(g.date)}, ${g.time} Uhr · ${esc(g.place)}</div>
+          <div class="small" style="margin-top:3px">${esc(cust(g.customerId).name)} · Gage <b class="num">${eur(g.fee)}</b> <span class="faint">(aus Notiz erkannt)</span></div></div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${state}
+          ${invc?"":`<label class="switch" title="Automatisch abrechnen"><input type="checkbox" data-gig="${g.id}" ${g.auto?"checked":""} aria-label="Automatische Rechnung für ${esc(g.title)}"><i></i></label>`}</div></div>`}).join("")}
+      </div></section>
+  </div>`;
+}
+
+/* Bank */
+function vBank(){
+  toolbar("bunq Konto","Verbunden über die bunq API · nur Lesezugriff",
+    `<button class="btn" data-act="sync" ${S.syncing?"disabled":""}>${ic("sync",S.syncing?"spin":"")}${S.syncing?"Synchronisiere …":"Jetzt abrufen"}</button>`);
+  const saldo = 8421.37;
+  const F=[["review","Zu prüfen"],["in","Eingänge"],["out","Ausgaben"],["all","Alle"]];
+  let list = tx.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  if(S.txFilter==="review") list = openTx();
+  if(S.txFilter==="in") list = list.filter(t=>t.amount>0);
+  if(S.txFilter==="out") list = list.filter(t=>t.amount<0);
+  $("content").innerHTML = `<div class="grid">
+    <section class="panel bank-card"><div class="bunq-logo">bunq</div>
+      <div style="flex:1;min-width:200px"><div style="font-weight:600">Geschäftskonto · Max Beispiel</div><div class="small muted mono">${ME.iban}</div></div>
+      <div><div class="small muted">Kontostand</div><div style="font-size:20px;font-weight:650" class="num">${eur(saldo)}</div></div>
+      <div class="small muted" style="min-width:160px"><div class="status-line"><span class="dot"></span>Zuletzt abgerufen vor 4 Min.</div>Eingänge werden automatisch mit Rechnungsnummern abgeglichen.</div>
+    </section>
+    <section class="panel"><div class="panel-h"><div class="seg">${F.map(f=>`<button class="${S.txFilter===f[0]?"on":""}" data-txf="${f[0]}">${f[1]}${f[0]==="review"?` <span class="faint">${openTx().length}</span>`:""}</button>`).join("")}</div></div>
+      <div class="tbl-wrap">${list.length?`<table><thead><tr><th>Datum</th><th>Gegenpartei</th><th>Verwendungszweck</th><th class="r">Betrag</th><th>Zuordnung</th></tr></thead><tbody>
+      ${list.map(t=>`<tr><td class="num">${fmtD(t.date)}</td><td style="min-width:150px">${esc(t.party)}</td><td class="small muted" style="min-width:150px">${esc(t.ref)}</td>
+        <td class="r num ${t.amount>0?"amt-in":"amt-out"}">${t.amount>0?"+":""}${eur(t.amount)}</td><td style="min-width:200px">${txCell(t)}</td></tr>`).join("")}</tbody></table>`
+      :`<div class="empty">${ic("check")} Alles zugeordnet. Neue Buchungen erscheinen hier automatisch.</div>`}</div></section>
+  </div>`;
+  $("content").querySelectorAll(".empty svg").forEach(s=>{s.style.width="16px";s.style.verticalAlign="-3px"});
+}
+function txCell(t){
+  if(t.amount>0){
+    if(t.match){const i=invoices.find(x=>x.id===t.match);return `<span class="pill p-paid">RE ${i.num}</span>`}
+    const s=invoices.find(x=>x.id===t.suggest);
+    return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="pill p-warn">Vorschlag: RE ${s.num}</span><button class="btn sm primary" data-act="match" data-id="${t.id}">Bestätigen</button></div>`;
+  }
+  return `<select class="mini" data-cat="${t.id}" aria-label="Kategorie"><option value=""${t.cat===null?" selected":""} disabled>Kategorie wählen …</option>${CATS.map(c=>`<option${t.cat===c?" selected":""}>${c}</option>`).join("")}<option value="Privat"${t.cat==="Privat"?" selected":""}>Privat (nicht betrieblich)</option></select>`;
+}
+
+/* EÜR */
+function vEuer(){
+  const e = euer();
+  toolbar("Gewinnermittlung 2026","Einnahmen-Überschuss-Rechnung (§ 4 Abs. 3 EStG) · vorläufig, Stand 17.11.2026",
+    `<button class="btn" data-act="export" data-what="CSV">Export CSV</button><button class="btn primary" data-act="export" data-what="PDF">${ic("pdf")}Anlage EÜR als PDF</button>`);
+  const unm = tx.filter(t=>t.amount>0&&!t.match), unc = tx.filter(t=>t.amount<0&&t.cat===null);
+  $("content").innerHTML = `<div class="grid">
+    ${unm.length||unc.length?`<div class="hint warn">${ic("alert")}<div>${unm.length?`${unm.length} Zahlungseingang noch nicht zugeordnet`:""}${unm.length&&unc.length?" · ":""}${unc.length?`${unc.length} Ausgabe ohne Kategorie`:""}. Diese Buchungen sind noch nicht enthalten. <button class="btn sm ghost" data-go="bank">Jetzt prüfen</button></div></div>`:""}
+    <section class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="kpi"><span class="l">Betriebseinnahmen</span><span class="v">${eur(e.income)}</span><span class="h">umsatzsteuerfrei nach § 19 UStG</span></div>
+      <div class="kpi"><span class="l">Betriebsausgaben</span><span class="v">${eur(e.expenses)}</span><span class="h">${CATS.length} Kategorien</span></div>
+      <div class="kpi"><span class="l">Gewinn</span><span class="v" style="color:var(--accent)">${eur(e.profit)}</span><span class="h">Wert für die Einkommensteuererklärung</span></div>
+    </section>
+    <div class="grid cols-main">
+      <section class="panel"><div class="panel-h"><h2>Monatsverlauf</h2><div class="legend" style="margin-left:auto"><span><i style="background:var(--accent)"></i>Einnahmen</span><span><i style="background:var(--expense)"></i>Ausgaben</span></div></div>
+        <div class="panel-b">${chart(e.months)}</div></section>
+      <section class="panel"><div class="panel-h"><h2>Aufstellung</h2></div><div class="panel-b">
+        <div class="euer-row"><b>Betriebseinnahmen</b><b class="num">${eur(e.income)}</b></div>
+        <div class="small muted" style="padding:10px 0 2px;font-weight:600">Betriebsausgaben</div>
+        ${CATS.map(c=>`<div class="euer-row small"><span>${c}</span><span class="num">${eur(e.byCat[c])}</span></div>`).join("")}
+        <div class="euer-row"><b>Summe Ausgaben</b><b class="num">− ${eur(e.expenses)}</b></div>
+        <div class="euer-row total"><span>Gewinn</span><span class="num">${eur(e.profit)}</span></div>
+      </div></section>
+    </div>
+    <div class="hint">${ic("info")}<div>Einnahmen zählen in dem Jahr, in dem das Geld auf deinem Konto eingeht (Zuflussprinzip, § 11 EStG). Die Werte übernimmst du in die Anlage EÜR in ELSTER. Gage ersetzt keine Steuerberatung.</div></div>
+  </div>`;
+}
+function chart(months){
+  const W=640,H=230,L=48,R=8,T=12,B=26, iw=W-L-R, ih=H-T-B;
+  const max = Math.max(...months.map(m=>Math.max(m.i,m.e)));
+  const step = 500, top = Math.ceil(max/step)*step || step;
+  const y = v => T+ih-(v/top)*ih;
+  const gw = iw/12, bw = Math.min(16,gw*0.32);
+  const names=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  let g="";
+  for(let v=0;v<=top;v+=step){ if(top/step>6 && (v/step)%2) continue; g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3.5}" text-anchor="end">${v.toLocaleString("de-DE")} €</text>`}
+  months.forEach((m,k)=>{
+    const cx = L+gw*k+gw/2, future = k>10;
+    g+=`<rect x="${cx-bw-1}" y="${y(m.i)}" width="${bw}" height="${T+ih-y(m.i)}" rx="2" fill="var(--accent)"><title>${names[k]}: Einnahmen ${eur(m.i)}</title></rect>`;
+    g+=`<rect x="${cx+1}" y="${y(m.e)}" width="${bw}" height="${T+ih-y(m.e)}" rx="2" fill="var(--expense)"><title>${names[k]}: Ausgaben ${eur(m.e)}</title></rect>`;
+    g+=`<text x="${cx}" y="${H-8}" text-anchor="middle" ${future?'opacity=".5"':""}>${names[k]}</text>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Einnahmen und Ausgaben je Monat 2026">${g}</svg>`;
+}
+
+/* Einstellungen */
+function vSettings(){
+  toolbar("Einstellungen","Alle Daten liegen lokal auf diesem Mac","");
+  const s=S.settings;
+  const radio=(name,val,title,desc)=>`<label class="radio-card"><input type="radio" name="${name}" value="${val}" ${s[name]===val?"checked":""} data-set="${name}"><span><b>${title}</b><br><span class="small muted">${desc}</span></span></label>`;
+  $("content").innerHTML = `<div class="panel panel-b" style="padding:22px">
+    <div class="set-sec"><div><h2>Deine Angaben</h2><div class="small muted">Erscheinen auf jeder Rechnung (Pflichtangaben nach § 14 UStG).</div></div>
+      <div class="row-f"><div class="field"><label for="s-n">Name</label><input class="input" id="s-n" value="${esc(ME.name)}"></div>
+      <div class="field"><label for="s-b">Tätigkeit</label><input class="input" id="s-b" value="${esc(ME.biz)}"></div>
+      <div class="field"><label for="s-a">Anschrift</label><input class="input" id="s-a" value="${esc(ME.street)}, ${esc(ME.city)}"></div>
+      <div class="field"><label for="s-t">Steuernummer</label><input class="input mono" id="s-t" value="${esc(ME.tax)}"></div></div></div>
+    <div class="set-sec"><div><h2>Rechnungen</h2><div class="small muted">Nummernkreis und Ablage</div></div>
+      <div class="row-f"><div class="field"><label for="s-nr">Nummernformat</label><input class="input mono" id="s-nr" value="JJJJ-NNN"></div>
+      <div class="field"><label for="s-z">Zahlungsziel</label><select class="input" id="s-z"><option>7 Tage</option><option selected>14 Tage</option><option>30 Tage</option></select></div>
+      <div class="field" style="grid-column:1/-1"><label for="s-p">Speicherort</label><div style="display:flex;gap:8px"><input class="input mono" id="s-p" value="~/Dokumente/Gage/Rechnungen/2026/" readonly><button class="btn" data-act="noop">Ändern …</button></div><span class="small muted">PDFs werden nach dem Speichern automatisch abgelegt, auch per iCloud Drive oder Time Machine gesichert.</span></div></div></div>
+    <div class="set-sec"><div><h2>E-Mail-Versand</h2><div class="small muted">Wie Rechnungen verschickt werden</div></div>
+      <div class="grid" style="gap:8px">${radio("sendMode","mail","Über Apple Mail","Nutzt dein bestehendes Postfach. Gesendete Rechnungen liegen auch in „Gesendet“.")}
+        ${radio("sendMode","smtp","Direkt per SMTP","Versand im Hintergrund, ohne dass Mail geöffnet wird.")}</div></div>
+    <div class="set-sec"><div><h2>Apple Kalender</h2><div class="small muted">Rechnungen aus Gig-Terminen</div></div>
+      <div class="grid" style="gap:12px"><div class="row-f"><div class="field"><label for="s-cal">Kalender</label><select class="input" id="s-cal" data-set="calendar">${["Gigs","Arbeit","Privat"].map(c=>`<option${c===s.calendar?" selected":""}>${c}</option>`).join("")}</select></div>
+        <div class="field"><label for="s-time">Rechnung erstellen am Folgetag um</label><input class="input" type="time" id="s-time" data-set="time" value="${s.time}"></div></div>
+        ${radio("autoMode","review","Erstellen und zur Prüfung vorlegen","Empfohlen. Du bekommst eine Mitteilung und sendest mit einem Klick.")}
+        ${radio("autoMode","auto","Erstellen und automatisch senden","Nur für Stammkunden mit festen Gagen sinnvoll.")}</div></div>
+    <div class="set-sec"><div><h2>bunq</h2><div class="small muted">Zahlungseingänge und Ausgaben</div></div>
+      <div class="grid" style="gap:10px"><div class="status-line"><span class="dot"></span><b>Verbunden</b><span class="small muted">· Geschäftskonto ${ME.iban.slice(-4)} · Nur-Lese-Zugriff über API-Schlüssel</span></div>
+        <div class="small muted">Der API-Schlüssel liegt verschlüsselt im macOS-Schlüsselbund. Gage kann keine Überweisungen ausführen.</div>
+        <div><button class="btn" data-act="noop">Verbindung trennen</button></div></div></div>
+  </div>`;
+}
+
+const VIEWS = {overview:vOverview,invoices:vInvoices,editor:vEditor,customers:vCustomers,calendar:vCalendar,bank:vBank,euer:vEuer,settings:vSettings};
+
+/* ---------- Modal & Toast ---------- */
+function openSend(i,reminder){
+  const c = cust(i.customerId);
+  const subj = reminder?`Zahlungserinnerung Rechnung ${i.num}`:`Rechnung ${i.num} – ${i.items[0].desc}`;
+  const body = reminder
+    ? `Hallo,\n\nsicher ist es im Alltag untergegangen: Die Rechnung ${i.num} vom ${fmtD(i.date)} über ${eur(total(i))} war am ${fmtD(due(i))} fällig. Ich freue mich über einen Ausgleich in den nächsten Tagen.\n\nViele Grüße\n${ME.name}`
+    : `Hallo,\n\nvielen Dank für die schöne Zusammenarbeit! Anbei erhalten Sie meine Rechnung ${i.num} über ${eur(total(i))}, zahlbar bis ${fmtD(due(i))}.\n\nViele Grüße\n${ME.name}`;
+  $("modal-root").innerHTML = `<div class="overlay" data-close><div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-t">
+    <div class="modal-h">${ic(reminder?"bell":"send")}<h2 id="m-t">${reminder?"Zahlungserinnerung senden":"Rechnung senden"}</h2><span class="small muted" style="margin-left:auto">${S.settings.sendMode==="mail"?"über Apple Mail":"per SMTP"}</span></div>
+    <div class="modal-b">
+      <div class="mail-field"><span>An</span><input id="m-to" value="${esc(c.mail)}"></div>
+      <div class="mail-field"><span>Betreff</span><input id="m-sub" value="${esc(subj)}"></div>
+      <textarea class="input" id="m-body" rows="8">${esc(body)}</textarea>
+      <span class="attach"><b>PDF</b>Rechnung_${i.num}.pdf <span class="faint">· 84 KB</span></span>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Abbrechen</button><button class="btn primary" data-act="${reminder?"doRemind":"doSend"}" data-id="${i.id}">${ic("send")}Senden</button></div>
+  </div></div>`;
+  setTimeout(()=>$("m-body").focus(),30);
+}
+function closeModal(){$("modal-root").innerHTML=""}
+let tt;
+function toast(msg,icon){const t=$("toast");t.innerHTML=ic(icon||"check")+`<span>${msg}</span>`;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3600)}
+
+/* ---------- Events ---------- */
+document.addEventListener("click",e=>{
+  const el = e.target.closest("[data-go],[data-act],[data-open],[data-filter],[data-txf],[data-open-inv],[data-close]");
+  if(!el) return;
+  if(el.hasAttribute("data-close") && (e.target===el || el.tagName==="BUTTON")){closeModal();return}
+  if(el.dataset.go){S.view=el.dataset.go;render();$("content").scrollTop=0;return}
+  if(el.dataset.open){S.selected=el.dataset.open;S.view="invoices";render();return}
+  if(el.dataset.openInv){S.selected=el.dataset.openInv;S.filter="all";S.view="invoices";render();return}
+  if(el.dataset.filter){S.filter=el.dataset.filter;render();return}
+  if(el.dataset.txf){S.txFilter=el.dataset.txf;render();return}
+  const id=el.dataset.id, a=el.dataset.act;
+  const i = invoices.find(x=>x.id===id);
+  switch(a){
+    case "new": startDraft(); break;
+    case "edit": S.draft=JSON.parse(JSON.stringify(i)); S.view="editor"; render(); break;
+    case "cancel": S.view="invoices"; render(); break;
+    case "addItem": S.draft.items.push({desc:"",qty:1,unit:"Std.",price:0}); render(); break;
+    case "delItem": if(S.draft.items.length>1){S.draft.items.splice(+el.dataset.k,1);render()} break;
+    case "save": {const n=commitDraft(); if(n){S.selected=n.id;S.view="invoices";S.filter="all";render();toast(`Gespeichert unter ~/Dokumente/Gage/Rechnungen/2026/Rechnung_${n.num}.pdf`,"save")}} break;
+    case "saveSend": {const n=commitDraft(); if(n){S.selected=n.id;S.view="invoices";S.filter="all";render();openSend(n)}} break;
+    case "send": openSend(i); break;
+    case "remind": openSend(i,true); break;
+    case "doSend": i.status="sent"; i.sentDate=iso(TODAY); closeModal(); render(); toast(`Rechnung ${i.num} an ${esc(cust(i.customerId).mail)} gesendet (Simulation)`,"send"); break;
+    case "doRemind": closeModal(); toast(`Zahlungserinnerung zu ${i.num} gesendet (Simulation)`,"bell"); break;
+    case "markpaid": i.paidDate=iso(TODAY); T(iso(TODAY),cust(i.customerId).name,"manuell als bezahlt markiert",total(i),{match:i.id}); render(); toast(`Rechnung ${i.num} als bezahlt markiert`); break;
+    case "finder": toast(`~/Dokumente/Gage/Rechnungen/2026/Rechnung_${i.num}.pdf`,"folder"); break;
+    case "match": {const t=tx.find(x=>x.id===id); const inv2=invoices.find(x=>x.id===t.suggest); t.match=inv2.id; inv2.paidDate=t.date; render(); toast(`Zahlung ${eur(t.amount)} mit Rechnung ${inv2.num} abgeglichen. Status: bezahlt.`)} break;
+    case "sync": S.syncing=true; render(); setTimeout(()=>{S.syncing=false;render();toast("bunq abgerufen. Keine neuen Buchungen.","sync")},1200); break;
+    case "fromGig": {const g=gigs.find(x=>x.id===id); startDraft({customerId:g.customerId,serviceDate:g.date,gigId:g.id,items:[{desc:`${g.title}, ${g.place}`,qty:1,unit:"Pauschal",price:g.fee}],note:"Zahlbar vor der Veranstaltung."})} break;
+    case "export": toast(`Gewinnermittlung 2026 als ${el.dataset.what} gespeichert (Simulation)`,"pdf"); break;
+    case "noop": toast("Im Mockup nicht verfügbar","info"); break;
+  }
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Enter" && e.target.matches("tr[data-open]")){e.target.click()}
+  if(e.key==="Escape") closeModal();
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="n"){e.preventDefault();startDraft()}
+});
+function onEdit(e){
+  const t=e.target;
+  if(S.view==="editor"){
+    if(t.dataset.field){S.draft[t.dataset.field]=t.value;refreshPreview();return}
+    if(t.dataset.item!=null){S.draft.items[+t.dataset.item][t.dataset.key]=t.value;refreshPreview();return}
+  }
+}
+document.addEventListener("input",onEdit);
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.dataset.gig){const g=gigs.find(x=>x.id===t.dataset.gig);g.auto=t.checked;render();toast(t.checked?`Rechnung für „${esc(g.title)}“ wird am ${fmtD(addDays(g.date,1))} erstellt`:`Automatik für „${esc(g.title)}“ ausgeschaltet`,"cal");return}
+  if(t.dataset.cat){const x=tx.find(y=>y.id===t.dataset.cat);x.cat=t.value;render();toast(t.value==="Privat"?"Als privat markiert, zählt nicht zur EÜR":`Kategorie „${esc(t.value)}“ gespeichert`);return}
+  if(t.dataset.set){S.settings[t.dataset.set]=t.value;renderSidebar();toast("Einstellung gespeichert");return}
+  onEdit(e);
+});
+
+render();
+})();
+</script>

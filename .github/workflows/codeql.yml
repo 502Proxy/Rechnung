@@ -1,0 +1,36 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [develop, qa, main]
+  push:
+    branches: [develop, main]
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (Swift)
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
+        with:
+          languages: swift
+          build-mode: manual
+          queries: security-extended
+      - name: Build
+        working-directory: Packages/GageKit
+        run: swift build
+      - uses: github/codeql-action/analyze@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
+        with:
+          category: "/language:swift"
