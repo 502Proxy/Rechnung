@@ -59,7 +59,7 @@ scripts/setup-github-repo.sh
 
 Das Skript lässt sich gefahrlos mehrfach ausführen. Es setzt:
 
-1. **Standard-Branch** `develop`, Squash- und Merge-Commits erlaubt, Rebase-Merge aus, Branches nach dem Merge löschen
+1. **Standard-Branch** `develop`, Squash- und Merge-Commits erlaubt, Rebase-Merge aus, Branches nach dem Merge löschen. Als Commit-Nachricht wird nur der PR-Titel übernommen, nicht die PR-Beschreibung
 2. **Ruleset „Stage-Branches“** für `main`, `qa` und `develop`: kein Löschen, kein Force-Push, Änderungen nur per Pull Request, alle Threads erledigt, Pflicht-Checks `SwiftLint`, `Unit tests (GageKit)`, `Build app`, `Secret scan`, `Branch policy` und `Analyze (Swift)`, Branch muss aktuell sein
 3. **Environments**: `development` (nur von `develop`), `qa` (nur von `qa`), `production` (nur von Tags `v*`, Freigabe durch dich)
 4. **Sicherheit**: Dependabot-Warnungen und -Sicherheitsupdates, Secret Scanning mit Push Protection, Private Vulnerability Reporting

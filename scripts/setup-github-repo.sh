@@ -27,7 +27,7 @@ for branch in main develop qa; do
   echo "  ✓ $branch"
 done
 
-step "Standard-Branch develop, Squash- und Merge-Commits, Branches nach Merge löschen"
+step "Standard-Branch develop, Squash- und Merge-Commits (nur PR-Titel als Nachricht), Branches nach Merge löschen"
 gh api -X PATCH "repos/$REPO" --silent \
   -f default_branch=develop \
   -F allow_squash_merge=true \
@@ -36,9 +36,9 @@ gh api -X PATCH "repos/$REPO" --silent \
   -F delete_branch_on_merge=true \
   -F allow_auto_merge=true \
   -f squash_merge_commit_title=PR_TITLE \
-  -f squash_merge_commit_message=PR_BODY \
+  -f squash_merge_commit_message=BLANK \
   -f merge_commit_title=PR_TITLE \
-  -f merge_commit_message=PR_BODY
+  -f merge_commit_message=BLANK
 echo "  ✓ erledigt"
 
 step "Ruleset „$RULESET_NAME“ für main, qa, develop"
@@ -78,12 +78,16 @@ JSON
 )
 existing_id=$(gh api "repos/$REPO/rulesets" -q ".[] | select(.name == \"$RULESET_NAME\") | .id" || true)
 if [[ -n "$existing_id" ]]; then
-  echo "$ruleset" | gh api -X PUT "repos/$REPO/rulesets/$existing_id" --input - --silent
-  echo "  ✓ aktualisiert (ID $existing_id)"
+  method=PUT; endpoint="repos/$REPO/rulesets/$existing_id"
 else
-  echo "$ruleset" | gh api -X POST "repos/$REPO/rulesets" --input - --silent
-  echo "  ✓ angelegt"
+  method=POST; endpoint="repos/$REPO/rulesets"
 fi
+if ! output=$(echo "$ruleset" | gh api -X "$method" "$endpoint" --input - 2>&1); then
+  echo "  ✗ Ruleset konnte nicht gespeichert werden. Antwort von GitHub:" >&2
+  echo "$output" | sed 's/^/    /' >&2
+  exit 1
+fi
+echo "  ✓ gespeichert"
 
 step "Environments development, qa, production"
 my_id=$(gh api user -q .id)
@@ -122,6 +126,16 @@ gh api -X PUT "repos/$REPO/private-vulnerability-reporting" --silent && echo "  
 echo '{"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"enabled"}}}' \
   | gh api -X PATCH "repos/$REPO" --input - --silent \
   && echo "  ✓ Secret Scanning mit Push Protection" || warn "Secret Scanning nicht aktiviert"
+
+step "Prüfung"
+for branch in main qa develop; do
+  rules=$(gh api "repos/$REPO/rules/branches/$branch" -q '[.[].type] | join(", ")')
+  if [[ -z "$rules" ]]; then
+    echo "  ✗ $branch ist nicht geschützt" >&2
+    exit 1
+  fi
+  echo "  ✓ $branch: $rules"
+done
 
 cat <<'DONE'
 
