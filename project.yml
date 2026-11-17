@@ -1,0 +1,75 @@
+# Xcode project definition. Gage.xcodeproj is generated from this file
+# (`xcodegen generate`) and not checked in, which avoids merge conflicts in project.pbxproj.
+name: Gage
+
+options:
+  bundleIdPrefix: app.gage
+  deploymentTarget:
+    macOS: "14.0"
+  developmentLanguage: de
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    CLANG_ENABLE_OBJC_ARC: YES
+  configs:
+    Release:
+      SWIFT_COMPILATION_MODE: wholemodule
+      SWIFT_OPTIMIZATION_LEVEL: -O
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+
+packages:
+  GageKit:
+    path: Packages/GageKit
+
+targets:
+  Gage:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Gage
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+    dependencies:
+      - package: GageKit
+        product: GageCore
+      - package: GageKit
+        product: GageSecurity
+      - package: GageKit
+        product: GagePersistence
+      - package: GageKit
+        product: GageIntegrations
+      - package: GageKit
+        product: GageUI
+    settings:
+      base:
+        PRODUCT_NAME: Gage
+        PRODUCT_BUNDLE_IDENTIFIER: app.gage.mac
+        INFOPLIST_FILE: App/Gage/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: App/Gage/Gage.entitlements
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        COMBINE_HIDPI_IMAGES: YES
+
+schemes:
+  Gage:
+    build:
+      targets:
+        Gage: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+    archive:
+      config: Release
